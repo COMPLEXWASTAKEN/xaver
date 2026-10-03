@@ -116,7 +116,7 @@ function desktopToast(n: Notice, force = false): void {
       : "A task finished."
     : n.body;
   try {
-    const icon = resolveAppIcon();
+    const icon = resolveAppIcon("png");
     const toast = new Notification({ title, body, silent: !c.notifySound, ...(icon ? { icon } : {}) });
     live.add(toast);
     const drop = () => live.delete(toast);

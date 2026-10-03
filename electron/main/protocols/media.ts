@@ -75,6 +75,15 @@ function xHeaders(): Record<string, string> {
   return headers;
 }
 
+async function fetchX(url: string, extra: Record<string, string> = {}): Promise<Response> {
+  try {
+    return await net.fetch(url, { headers: { ...xHeaders(), ...extra }, redirect: "error" });
+  } catch {
+    const { Cookie: _cookie, ...anonymous } = { ...xHeaders(), ...extra };
+    return net.fetch(url, { headers: anonymous, redirect: "follow" });
+  }
+}
+
 function isAllowedMediaHost(host: string): boolean {
   return /(^|\.)twimg\.com$|(^|\.)x\.com$|(^|\.)twitter\.com$|(^|\.)pscp\.tv$|(^|\.)periscope\.tv$/.test(host);
 }
@@ -106,7 +115,7 @@ async function fetchPreview(url: string): Promise<string> {
   const dest = path.join(dir, `${hash}${ext}`);
   if (fs.existsSync(dest) && fs.statSync(dest).size > 1024) return dest;
 
-  const res = await net.fetch(url, { headers: xHeaders() });
+  const res = await fetchX(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length < 32) throw new Error("Empty media");
@@ -175,10 +184,8 @@ export function handleMediaProtocols(): void {
         target = decodeURIComponent(target);
       } catch {}
       if (!allowedRemote(target)) return new Response("Host not allowed", { status: 403 });
-      const headers = xHeaders();
       const range = request.headers.get("range");
-      if (range) headers.Range = range;
-      const res = await net.fetch(target, { headers });
+      const res = await fetchX(target, range ? { Range: range } : {});
       const out = new Headers(res.headers);
       out.delete("set-cookie");
       return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });

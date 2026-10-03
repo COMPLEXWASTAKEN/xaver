@@ -133,9 +133,15 @@ namespace XaverSetup
 
         static int Compare(string a, string b)
         {
+            var pa = (a ?? "").Split(new[] { '-' }, 2);
+            var pb = (b ?? "").Split(new[] { '-' }, 2);
             Version va, vb;
-            if (Version.TryParse(a, out va) && Version.TryParse(b, out vb)) return va.CompareTo(vb);
-            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+            if (!Version.TryParse(pa[0], out va) || !Version.TryParse(pb[0], out vb))
+                return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+            var core = va.CompareTo(vb);
+            if (core != 0) return core;
+            if (pa.Length == 1 || pb.Length == 1) return pb.Length - pa.Length;
+            return string.Compare(pa[1], pb[1], StringComparison.OrdinalIgnoreCase);
         }
 
         void AddFeature(string title, string body)

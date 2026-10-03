@@ -8,7 +8,7 @@ import { initJobsFromDisk, stopAll, whenIdle } from "./jobs/queue";
 import { flushNotices, initNotifications } from "./notifications/center";
 import { handleMediaProtocols, purgePreviewCache, registerMediaSchemes } from "./protocols/media";
 import { attachWindow, initSecurity, revealWindow } from "./security/lock";
-import { loadConfig } from "./storage/config";
+import { resolvedOutputRoot } from "./storage/config";
 import { flushMediaDb } from "./storage/media-db";
 
 const PERMISSIONS_ALLOWED = new Set(["fullscreen", "clipboard-sanitized-write"]);
@@ -36,7 +36,7 @@ app.whenReady().then(() => {
 
   handleMediaProtocols();
   try {
-    fs.mkdirSync(loadConfig().outputRoot, { recursive: true });
+    fs.mkdirSync(resolvedOutputRoot(), { recursive: true });
   } catch {}
 
   initSecurity(getMainWindow);

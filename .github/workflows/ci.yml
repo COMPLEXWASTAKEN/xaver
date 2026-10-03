@@ -1,0 +1,74 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["**.md", "docs/**", "LICENSE", ".github/dependabot.yml"]
+  pull_request:
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and verify
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}\.cache\electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\.cache\electron-builder
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - name: Install
+        run: npm ci
+
+      - name: Build, package and verify
+        run: npm run dist -- --no-bump
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f dist/release.json ]; then node scripts/release-notes.mjs --summary; fi
+
+      - name: Read version
+        id: meta
+        shell: bash
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Xaver-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.sha }}
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
+            dist/release.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

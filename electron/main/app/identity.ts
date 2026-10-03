@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, shell } from "electron";
 
-export const APP_ID = "app.xaver.desktop";
+export const APP_ID = app.isPackaged ? "app.xaver.desktop" : "app.xaver.desktop.dev";
 
 const LEGACY_DATA_DIR = "profile-media-saver-desktop";
 
@@ -20,6 +20,7 @@ export function tagShortcuts(): void {
   const exe = path.resolve(process.execPath).toLowerCase();
   const dirs = [
     path.join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs"),
+    path.join(app.getPath("appData"), "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar"),
     app.getPath("desktop")
   ];
   for (const dir of dirs) {

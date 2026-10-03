@@ -1110,6 +1110,19 @@ textarea.field {
   flex-wrap: wrap;
 }
 
+.gb-pager .gb-size {
+  width: auto;
+  flex: none;
+  margin-left: auto;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+
+.gb-pager .gb-size:focus {
+  box-shadow: none;
+}
+
 .gb-range {
   font-size: 11px;
 }

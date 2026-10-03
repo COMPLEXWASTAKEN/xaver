@@ -25,6 +25,7 @@ import {
   clearSession,
   loadConfig,
   loadSession,
+  safeLaunchArgs,
   saveSession,
   type StoredSession
 } from "../storage/config";
@@ -46,7 +47,7 @@ function cookieNames(cookies: Array<{ name?: string }>): Set<string> {
 
 export function getShardxCacheDir(): string {
   const cfg = loadConfig();
-  if (cfg.shardxCacheDir && cfg.shardxCacheDir.trim()) {
+  if (cfg.shardxCacheDir && path.isAbsolute(cfg.shardxCacheDir.trim())) {
     return path.resolve(cfg.shardxCacheDir.trim());
   }
   return path.join(app.getPath("userData"), "shardx");
@@ -58,11 +59,7 @@ export function getCloakProfileDir(): string {
 
 function shardxLaunchFromConfig(onLog?: (m: string) => void) {
   const cfg = loadConfig();
-  const extraArgs = String(cfg.playwrightArgs || "")
-    .split(/\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .filter((a) => !/disable-blink-features=AutomationControlled/i.test(a));
+  const extraArgs = safeLaunchArgs(cfg.playwrightArgs).filter((a) => !/disable-blink-features=AutomationControlled/i.test(a));
 
   return {
     cacheDir: getShardxCacheDir(),

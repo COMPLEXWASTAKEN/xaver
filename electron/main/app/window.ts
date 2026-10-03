@@ -48,20 +48,23 @@ export function openOutside(url: string): void {
   if (/^https:\/\//i.test(url)) void shell.openExternal(url).catch(() => {});
 }
 
-export function resolveAppIcon(): string | undefined {
-  const candidates = [
-    path.join(process.resourcesPath || "", "icon.png"),
+export function resolveAppIcon(format: "ico" | "png" = "ico"): string | undefined {
+  const ico = [
+    path.join(process.resourcesPath || "", "icon.ico"),
     path.join(__dirname, "../../build/icon.ico"),
+    path.join(process.cwd(), "build/icon.ico")
+  ];
+  const png = [
+    path.join(process.resourcesPath || "", "icon.png"),
     path.join(__dirname, "../../build/icons/icon-256.png"),
-    path.join(process.cwd(), "build/icon.ico"),
     path.join(process.cwd(), "build/icons/icon-256.png")
   ];
-  return candidates.find((c) => c && fs.existsSync(c));
+  const order = format === "ico" ? [...ico, ...png] : [...png, ...ico];
+  return order.find((c) => c && fs.existsSync(c));
 }
 
 function preloadPath(): string {
-  const mjs = path.join(__dirname, "../preload/index.mjs");
-  return fs.existsSync(mjs) ? mjs : path.join(__dirname, "../preload/index.js");
+  return path.join(__dirname, "../preload/index.cjs");
 }
 
 function windowBackground(): string {
@@ -104,7 +107,10 @@ export function createMainWindow(): BrowserWindow {
       preload: preloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      spellcheck: false
     }
   });
   mainWindow = win;

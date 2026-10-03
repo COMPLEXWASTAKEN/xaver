@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, dialog, shell } from "electron";
-import { loadConfig } from "./config";
+import { loadConfig, resolvedOutputRoot } from "./config";
 import { loadEngineModule } from "../engine/loader";
 import { databaseKey } from "../security/lock";
 import type { DbOverview, DbSearchRow, LegacyIndexStatus, MigrateResult } from "../../shared/types";
@@ -56,7 +56,7 @@ export function applyDbKey(): Promise<void> {
 
 export async function dbOverview(): Promise<DbOverview> {
   const d = await db();
-  const root = loadConfig().outputRoot;
+  const root = resolvedOutputRoot();
   return { ...d.stats(), encrypted: Boolean(databaseKey()), legacy: root ? d.legacyStatus(root) : null };
 }
 
@@ -64,7 +64,7 @@ export function dbMigrateLegacy(file?: string): Promise<MigrateResult> {
   return exclusive(async () => {
     const d = await db();
     const mod = await engine();
-    const root = loadConfig().outputRoot;
+    const root = resolvedOutputRoot();
     const target = file || (root ? path.join(root, mod.LEGACY_INDEX_NAME) : "");
     if (!target || !fs.existsSync(target)) throw new Error("No old index file found to migrate.");
     const outRoot = path.dirname(target);
@@ -93,7 +93,7 @@ export function dbPruneMissing() {
 
 export function dbRescan() {
   return exclusive(async () => {
-    const root = loadConfig().outputRoot;
+    const root = resolvedOutputRoot();
     if (!root || !fs.existsSync(root)) throw new Error("Output folder does not exist yet.");
     return (await db()).seedFromDisk(root);
   });

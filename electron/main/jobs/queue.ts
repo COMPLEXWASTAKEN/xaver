@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { BrowserWindow, shell } from "electron";
 import { getAuthStatus, getSessionCookies, getShardxCacheDir } from "../auth/session";
-import { loadConfig, loadHistory, saveHistory } from "../storage/config";
+import { loadConfig, loadHistory, resolvedOutputRoot, safeLaunchArgs, saveHistory } from "../storage/config";
 import type { JobProgress, JobRecord, MediaItem } from "../../shared/types";
 import { loadEngineModule } from "../engine/loader";
 import { mediaDbPath } from "../storage/media-db";
@@ -144,10 +144,7 @@ export function getLiveItems(): MediaItem[] {
 }
 
 function engineOpts(cfg: ReturnType<typeof loadConfig>, signal?: AbortSignal) {
-  const launchArgs = String(cfg.playwrightArgs || "")
-    .split(/\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const launchArgs = safeLaunchArgs(cfg.playwrightArgs);
   return {
     headless: cfg.headless,
     maxScrolls: cfg.maxScrolls,
@@ -175,7 +172,7 @@ function engineOpts(cfg: ReturnType<typeof loadConfig>, signal?: AbortSignal) {
     retries: cfg.retryCount,
     requestTimeoutMs: cfg.requestTimeoutMs,
     wantZip: cfg.defaultZip,
-    outRoot: cfg.outputRoot,
+    outRoot: resolvedOutputRoot(cfg),
     dbPath: mediaDbPath(),
     dbKey: databaseKey(),
     signal

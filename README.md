@@ -7,6 +7,11 @@
 <p align="center">A Windows desktop app for saving photos, videos and GIFs from X profiles.</p>
 
 <p align="center">
+  <a href="https://github.com/COMPLEXWASTAKEN/xaver/actions/workflows/ci.yml"><img src="https://github.com/COMPLEXWASTAKEN/xaver/actions/workflows/ci.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/COMPLEXWASTAKEN/xaver/actions/workflows/release.yml"><img src="https://github.com/COMPLEXWASTAKEN/xaver/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/settings-appearance.png" width="820" alt="Xaver settings">
 </p>
 
@@ -57,6 +62,21 @@ The installer is a small WPF app in [`installer/`](installer) and needs the [.NE
 | `npm run dist:dir` | Unpacked app only, no installer |
 | `npm run icons` | Regenerate icons from `build/icon.svg` |
 | `npm run cli` | Terminal scanner that reads a cookie file |
+| `npm run release` | Bump the version, tag it and push, which publishes a release |
+
+## Releases
+
+Every push and pull request is built and verified on GitHub Actions, and the installer is attached to the run as an artifact for two weeks.
+
+To publish a release:
+
+```bash
+npm run release            # 2.0.12 -> 2.0.13
+npm run release -- minor   # 2.0.12 -> 2.1.0
+npm run release -- 2.2.0-beta.1
+```
+
+This checks that `main` is clean and up to date, bumps the version, commits, tags and pushes. The tag starts the **Release** workflow, which builds and verifies the installer, then publishes a GitHub Release with the setup file, checksums and notes made from the commits since the last tag. Versions with a suffix like `-beta.1` are marked as pre-releases. You can also start a release from the Actions tab and type a version.
 
 ## Project layout
 
@@ -76,6 +96,10 @@ scripts/       build, packaging and release tooling
 - Settings, session, PIN, notifications and the media database are stored in `%APPDATA%\Xaver`. Installs upgraded from the old Profile Media Saver keep using their existing folder.
 - Downloads go to `Documents\Xaver` by default. You can change this in **Settings → General**.
 - The app talks to X, to ShardX once to download its browser, and to Google Fonts for the interface typeface. Nothing else.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how the app is hardened and how to report a problem.
 
 ## A note on comments
 

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import { loadConfig } from "./config";
+import { loadConfig, resolvedOutputRoot } from "./config";
 
 export type LibraryRun = {
   id: string;
@@ -44,7 +44,7 @@ function countMedia(dir: string): { photos: number; videos: number; gifs: number
 }
 
 export function listRuns(): LibraryRun[] {
-  const root = loadConfig().outputRoot;
+  const root = resolvedOutputRoot();
   if (!root || !fs.existsSync(root)) return [];
   let entries: fs.Dirent[];
   try {
@@ -168,12 +168,12 @@ function isUnderDir(abs: string, root: string): boolean {
 
 export function isOpenablePath(target: string): boolean {
   if (!target || typeof target !== "string" || !path.isAbsolute(target)) return false;
-  const roots = [loadConfig().outputRoot, app.getPath("userData")].filter(Boolean);
+  const roots = [resolvedOutputRoot(), app.getPath("userData")].filter(Boolean);
   return roots.some((r) => isUnderDir(target, r));
 }
 
 export function resolveMediaPath(relativeOrAbsolute: string): string | null {
-  const root = path.resolve(loadConfig().outputRoot);
+  const root = path.resolve(resolvedOutputRoot());
   const previewRoot = path.resolve(path.join(app.getPath("userData"), "preview-cache"));
   if (!relativeOrAbsolute) return null;
   let candidate = relativeOrAbsolute;

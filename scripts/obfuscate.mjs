@@ -119,7 +119,7 @@ function collect(dir, acc = []) {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, ent.name);
     if (ent.isDirectory()) collect(p, acc);
-    else if (/\.(js|mjs)$/.test(ent.name) && ent.name !== "cli.js") acc.push(p);
+    else if (/\.(js|mjs|cjs)$/.test(ent.name) && ent.name !== "cli.js") acc.push(p);
   }
   return acc;
 }

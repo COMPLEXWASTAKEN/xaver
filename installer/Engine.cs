@@ -260,6 +260,40 @@ namespace XaverSetup
         public static string Desktop => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), Product.Brand + ".lnk");
         public static string StartMenu => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), Product.Brand + ".lnk");
 
+        static string PinnedDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar");
+
+        static bool IsInside(string file, string dir) =>
+            Path.GetFullPath(file).StartsWith(Path.GetFullPath(dir).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+
+        public static void RetargetPins(string oldDir, string exe)
+        {
+            if (string.IsNullOrWhiteSpace(oldDir) || !Directory.Exists(PinnedDir)) return;
+            foreach (var lnk in Directory.GetFiles(PinnedDir, "*.lnk"))
+            {
+                try
+                {
+                    var t = Target(lnk);
+                    if (t == null || !IsInside(t, oldDir) || string.Equals(t, exe, StringComparison.OrdinalIgnoreCase)) continue;
+                    var type = Type.GetTypeFromProgID("WScript.Shell");
+                    dynamic shell = Activator.CreateInstance(type);
+                    try
+                    {
+                        dynamic sc = shell.CreateShortcut(lnk);
+                        sc.TargetPath = exe;
+                        sc.WorkingDirectory = Path.GetDirectoryName(exe);
+                        sc.IconLocation = exe + ",0";
+                        sc.Description = Product.Brand;
+                        sc.Save();
+                        Marshal.FinalReleaseComObject(sc);
+                    }
+                    finally { Marshal.FinalReleaseComObject(shell); }
+                    Log.Write($"Pointed taskbar pin {Path.GetFileName(lnk)} at {exe}");
+                }
+                catch (Exception e) { Log.Write($"Taskbar pin {lnk}: {e.Message}"); }
+            }
+        }
+
         public static void RemoveAllPointingInto(string dir) => RemovePointingInto(dir, Product.AllBrands);
 
         public static void RemoveFormerPointingInto(string dir) =>
@@ -532,6 +566,7 @@ namespace XaverSetup
 
                 report(0.96, "Registering with Windows", "");
                 Register(dir);
+                foreach (var e in existing) Shortcuts.RetargetPins(e.Dir, exe);
                 CleanupLegacy(existing, dir);
 
                 report(0.99, "Tidying up", "");

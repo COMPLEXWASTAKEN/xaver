@@ -240,13 +240,14 @@ export function GalleryBoard({
           Next
         </button>
         <select
-          className="field"
+          className="field gb-size"
+          aria-label="Items per page"
           value={pageSize}
           onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
         >
           {PAGE_SIZES.map((n) => (
             <option key={n} value={n}>
-              {n}
+              {n} per page
             </option>
           ))}
         </select>

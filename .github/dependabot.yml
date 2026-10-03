@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      build-tools:
+        patterns: ["electron-vite", "electron-builder", "vite", "@vitejs/*", "typescript", "@types/*", "javascript-obfuscator", "sharp", "png-to-ico"]
+        update-types: ["minor", "patch"]
+      react:
+        patterns: ["react", "react-dom"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: electron
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@proxyshard/shardx"
+        update-types: ["version-update:semver-major"]

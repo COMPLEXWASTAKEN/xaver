@@ -54,6 +54,10 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(root, "electron/preload/index.ts")
+        },
+        output: {
+          format: "cjs",
+          entryFileNames: "[name].cjs"
         }
       }
     },
