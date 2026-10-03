@@ -25,3 +25,11 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@proxyshard/shardx"
         update-types: ["version-update:semver-major"]
+      - dependency-name: vite
+        update-types: ["version-update:semver-major"]
+      - dependency-name: electron-vite
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: archiver
+        update-types: ["version-update:semver-major"]

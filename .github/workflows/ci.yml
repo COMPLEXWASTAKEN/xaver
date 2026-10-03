@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ["**"]
+    branches-ignore: ["dependabot/**"]
     paths-ignore: ["**.md", "docs/**", "LICENSE", ".github/dependabot.yml"]
   pull_request:
     paths-ignore: ["**.md", "docs/**", "LICENSE"]
