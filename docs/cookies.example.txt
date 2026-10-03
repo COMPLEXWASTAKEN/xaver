@@ -1,0 +1,5 @@
+# Example cookie export (EditThisCookie Set-Cookie3 style)
+# Replace with your own export. Never commit real auth cookies.
+#
+# Set-Cookie3: auth_token=YOUR_TOKEN; path="/"; domain=".x.com"; secure; expires="0"
+# Set-Cookie3: ct0=YOUR_CT0; path="/"; domain=".x.com"; secure; expires="0"

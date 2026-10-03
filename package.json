@@ -1,0 +1,131 @@
+{
+  "name": "xaver",
+  "productName": "Xaver",
+  "version": "2.0.12",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Save photos and videos from X profiles, with a gallery, a dedupe database and an app lock.",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "bin": {
+    "xaver": "./src/cli.js"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build && node scripts/obfuscate.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "obfuscate": "node scripts/obfuscate.mjs",
+    "preview": "electron-vite preview",
+    "icons": "node scripts/make-icon.mjs",
+    "clean": "node scripts/clean.mjs",
+    "dist": "node scripts/dist.mjs",
+    "dist:dir": "node scripts/dist.mjs --dir --no-bump",
+    "dist:fast": "node scripts/dist.mjs --no-clean --dir --no-bump --no-typecheck",
+    "installer": "node scripts/installer.mjs",
+    "verify": "node scripts/verify-dist.mjs",
+    "bump": "node scripts/version.mjs --bump",
+    "cli": "node src/cli.js",
+    "start": "electron-vite preview"
+  },
+  "dependencies": {
+    "@proxyshard/shardx": "^2.0.3",
+    "archiver": "^7.0.1",
+    "archiver-utils": "^5.0.2",
+    "compress-commons": "^7.0.1",
+    "crc32-stream": "^7.0.1",
+    "ffmpeg-static": "^5.3.0",
+    "mmdb-lib": "^3.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "readable-stream": "^4.7.0",
+    "sql.js": "^1.14.2",
+    "undici": "^6.28.1",
+    "zip-stream": "^7.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^36.9.5",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "javascript-obfuscator": "^5.6.0",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  },
+  "build": {
+    "appId": "app.xaver.desktop",
+    "productName": "Xaver",
+    "copyright": "Copyright © Xaver",
+    "asar": true,
+    "compression": "maximum",
+    "npmRebuild": false,
+    "electronLanguages": [
+      "en-US"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "!out/**/*.map",
+      "!**/*.{md,markdown,ts,map}",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,tests,example,examples,__tests__,docs}/**",
+      "!**/node_modules/.bin/**"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icons/icon-256.png",
+        "to": "icon.png"
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**",
+      "**/node_modules/@proxyshard/shardx/**",
+      "**/node_modules/patchright/**",
+      "**/node_modules/undici/**"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Xaver",
+      "unicode": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName} Portable ${version}.${ext}"
+    }
+  }
+}
