@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -72,3 +72,26 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Publish latest build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=latest-build
+          git tag -f "$tag" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$tag"
+          node scripts/release-notes.mjs --stage=release --notes=release/NOTES.md --tag="$tag" --build
+          title="Latest build · ${GITHUB_SHA::7}"
+          files=(release/*.exe release/SHA256SUMS.txt release/release.json)
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release view "$tag" --json assets --jq '.assets[].name' | while read -r name; do
+              gh release delete-asset "$tag" "$name" -y
+            done
+            gh release upload "$tag" "${files[@]}" --clobber
+            gh release edit "$tag" --title "$title" --notes-file release/NOTES.md --prerelease --latest=false
+          else
+            gh release create "$tag" "${files[@]}" --title "$title" --notes-file release/NOTES.md --prerelease --latest=false
+          fi
+          echo "Published https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

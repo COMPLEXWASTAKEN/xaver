@@ -66,7 +66,7 @@ The installer is a small WPF app in [`installer/`](installer) and needs the [.NE
 
 ## Releases
 
-Every push and pull request is built and verified on GitHub Actions, and the installer is attached to the run as an artifact for two weeks.
+Every push and pull request is built and verified on GitHub Actions. Each push to `main` also updates the **Latest build** pre-release on the Releases page, so the newest installer is always one click away.
 
 To publish a release:
 

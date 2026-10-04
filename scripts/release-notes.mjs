@@ -62,12 +62,19 @@ function buildTable(release) {
   return `| Step | Time |\n|---|---|\n${rows}`;
 }
 
-function notes(release, tag, repo) {
+function notes(release, tag, repo, build) {
   const staged = release.artifacts.map((a) => ({ ...a, file: assetName(a.file) }));
   const setup = staged.find((a) => /setup/i.test(a.file)) || staged[0];
   const base = `https://github.com/${repo}`;
-  const { previous, lines } = changes(tag);
+  const { previous, lines } = build ? { previous: "", lines: [git(["log", "-1", "--pretty=format:%s (%h)"])].filter(Boolean) } : changes(tag);
   const out = [];
+  if (build) {
+    const sha = (process.env.GITHUB_SHA || git(["rev-parse", "HEAD"])).slice(0, 7);
+    out.push(
+      `> Built automatically from \`${sha}\` on \`main\` at ${release.builtAt}. This updates on every push, so it may have rough edges. For a stable version, pick the newest release without the Pre-release label.`,
+      ""
+    );
+  }
   if (setup) {
     out.push(
       `**[Download ${setup.file}](${base}/releases/download/${tag}/${encodeURIComponent(setup.file)})** · ${size(setup.bytes)} · Windows 10 and 11, 64-bit`,
@@ -137,5 +144,5 @@ const notesFile = arg("notes");
 if (notesFile) {
   const tag = arg("tag") || `v${release.version}`;
   const repo = arg("repo") || process.env.GITHUB_REPOSITORY || "";
-  fs.writeFileSync(path.resolve(root, notesFile), notes(release, tag, repo));
+  fs.writeFileSync(path.resolve(root, notesFile), notes(release, tag, repo, flag("build")));
 }
