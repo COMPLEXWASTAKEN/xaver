@@ -18,11 +18,12 @@ Please don't open a public issue for security problems. Use GitHub's private vul
 
 ## Known advisories
 
-`npm audit` still reports two issues that have no fixed version yet. Neither affects how Xaver uses the package.
+`npm audit` still reports one issue that has no fixed version yet. It doesn't affect the app.
 
 | Package | Where it's used | Why it's acceptable for now |
 |---|---|---|
-| `adm-zip` | Inside `@proxyshard/shardx`, to unpack its browser build | It only unpacks the ShardX archive, downloaded over HTTPS from ShardX's own servers. It never handles files from X or from users. |
-| `http-cache-semantics` | Build tooling only (`electron-builder` → `@electron/get`) | Used once at build time to download Electron. It never ships in the app. |
+| `http-cache-semantics` | Build tooling only (`electron-builder` → `@electron/get` → `got`) | Used once at build time to download Electron. It never ships in the app. |
 
-Dependabot checks dependencies weekly, so these get picked up as soon as fixes land.
+ShardX still asks for `adm-zip` 0.5, which has several advisories. `package.json` overrides it to 0.6.1, the patched release, and ShardX's browser download and unpacking were tested against it.
+
+Dependabot checks dependencies weekly, so this gets picked up as soon as a fix lands.
