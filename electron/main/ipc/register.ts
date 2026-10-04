@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import type { AppConfig, Appearance, SecurityPrefs } from "../../shared/types";
+import { appInfo, cancelDownload, checkForUpdates, downloadUpdate, installUpdate, updateState } from "../app/updates";
 import { getMainWindow } from "../app/window";
 import {
   clearAuth,
@@ -181,6 +182,15 @@ function registerDatabase(): void {
   handle("db:reveal", () => dbReveal());
 }
 
+function registerUpdates(): void {
+  handle("updates:info", () => appInfo());
+  handle("updates:state", () => updateState());
+  handle("updates:check", () => checkForUpdates());
+  handle("updates:download", () => downloadUpdate());
+  handle("updates:cancel", () => cancelDownload());
+  handle("updates:install", () => installUpdate());
+}
+
 function registerNotices(): void {
   handle("notices:list", () => noticeFeed());
   handle("notices:markRead", (_e, ids?: string[]) => markNoticesRead(Array.isArray(ids) ? ids.map(String) : undefined));
@@ -198,4 +208,5 @@ export function registerIpc(): void {
   registerLibrary();
   registerDatabase();
   registerNotices();
+  registerUpdates();
 }

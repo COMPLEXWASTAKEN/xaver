@@ -19,6 +19,7 @@ export type AppConfig = {
   notifyQuiet: boolean;
   notifyQuietFrom: number;
   notifyQuietTo: number;
+  autoUpdateCheck: boolean;
   themeDensity: ThemeDensity;
   theme: ThemeName;
   accent: string;
@@ -74,6 +75,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   notifyQuiet: false,
   notifyQuietFrom: 22,
   notifyQuietTo: 7,
+  autoUpdateCheck: true,
   themeDensity: "comfortable",
   theme: "charcoal",
   accent: "#ff5a3c",
@@ -299,7 +301,7 @@ export type NoticeKind = "scan" | "download" | "failure" | "session" | "database
 
 export type NoticeTone = "ok" | "info" | "warn" | "error";
 
-export type NoticeTarget = "run" | "library" | "database" | "jobs" | "settings" | "account";
+export type NoticeTarget = "run" | "library" | "database" | "jobs" | "settings" | "account" | "about";
 
 export type Notice = {
   id: string;
@@ -318,4 +320,49 @@ export type NoticeInput = Omit<Notice, "id" | "at" | "read">;
 export type NoticeFeed = {
   items: Notice[];
   unread: number;
+};
+
+export type AppInfo = {
+  name: string;
+  version: string;
+  electron: string;
+  chrome: string;
+  node: string;
+  v8: string;
+  os: string;
+  arch: string;
+  packaged: boolean;
+  installDir: string;
+  dataDir: string;
+  releasesUrl: string;
+  issuesUrl: string;
+};
+
+export type UpdateRelease = {
+  version: string;
+  name: string;
+  publishedAt: string;
+  notes: string;
+  url: string;
+  asset: { name: string; size: number } | null;
+};
+
+export type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "current"
+  | "available"
+  | "unavailable"
+  | "error"
+  | "downloading"
+  | "ready"
+  | "installing";
+
+export type UpdateState = {
+  status: UpdateStatus;
+  checkedAt: number;
+  release: UpdateRelease | null;
+  received: number;
+  total: number;
+  error: string | null;
 };

@@ -190,6 +190,16 @@ button {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   opacity: 0.7;
+  border: 0;
+  padding: 4px 0;
+  background: none;
+  cursor: pointer;
+  transition: color var(--ease), opacity var(--ease);
+}
+
+.brand-ver:hover {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .nav {

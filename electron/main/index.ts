@@ -6,6 +6,7 @@ import { ensureShardxReady } from "./auth/session";
 import { registerIpc } from "./ipc/register";
 import { initJobsFromDisk, stopAll, whenIdle } from "./jobs/queue";
 import { flushNotices, initNotifications } from "./notifications/center";
+import { initUpdates } from "./app/updates";
 import { handleMediaProtocols, purgePreviewCache, registerMediaSchemes } from "./protocols/media";
 import { attachWindow, initSecurity, revealWindow } from "./security/lock";
 import { resolvedOutputRoot } from "./storage/config";
@@ -44,6 +45,7 @@ app.whenReady().then(() => {
   initJobsFromDisk();
   registerIpc();
   createMainWindow();
+  initUpdates();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

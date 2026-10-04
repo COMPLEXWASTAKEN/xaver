@@ -60,6 +60,14 @@ function Icon({ name }: { name: ViewId }) {
           <path d="M4 20c1.5-4 14.5-4 16 0" />
         </svg>
       );
+    case "about":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 11v5.5" />
+          <path d="M12 7.6v.01" />
+        </svg>
+      );
   }
 }
 
@@ -69,7 +77,8 @@ const ITEMS: { id: ViewId; label: string }[] = [
   { id: "database", label: "Database" },
   { id: "jobs", label: "Jobs" },
   { id: "settings", label: "Settings" },
-  { id: "account", label: "Account" }
+  { id: "account", label: "Account" },
+  { id: "about", label: "About" }
 ];
 
 export function Sidebar({
@@ -80,6 +89,7 @@ export function Sidebar({
   onLock,
   shielded,
   unread = 0,
+  updateReady = false,
   bellOpen = false,
   onBell
 }: {
@@ -90,6 +100,7 @@ export function Sidebar({
   onLock?: () => void;
   shielded?: boolean;
   unread?: number;
+  updateReady?: boolean;
   bellOpen?: boolean;
   onBell?: () => void;
 }) {
@@ -120,6 +131,7 @@ export function Sidebar({
               <span className={`nav-dot ${auth?.authenticated ? "ok" : ""}`} />
             ) : null}
             {it.id === "jobs" && activeJob ? <span className="nav-dot run" /> : null}
+            {it.id === "about" && updateReady ? <span className="nav-dot run" /> : null}
           </button>
         ))}
       </nav>
@@ -192,9 +204,9 @@ export function Sidebar({
           </svg>
         </button>
       ) : null}
-      <div className="brand-ver" title={`v${version}`}>
+      <button type="button" className="brand-ver" title={`Xaver ${version} · About`} onClick={() => onNavigate("about")}>
         {version}
-      </div>
+      </button>
     </aside>
   );
 }

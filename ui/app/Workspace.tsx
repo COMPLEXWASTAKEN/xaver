@@ -16,6 +16,7 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { NotificationCenter } from "../components/notifications/NotificationCenter";
 import { mergeItems, upsertItems } from "../lib/live-items";
 import { errorText, toast } from "../lib/toasts";
+import { AboutView } from "../views/AboutView";
 import { AccountView } from "../views/AccountView";
 import { DatabaseView } from "../views/DatabaseView";
 import { JobsView } from "../views/JobsView";
@@ -66,6 +67,7 @@ export function Workspace({
   const [feed, setFeed] = useState<NoticeFeed>({ items: [], unread: 0 });
   const [bellOpen, setBellOpen] = useState(false);
   const [settingsCat, setSettingsCat] = useState<SettingsCat | undefined>();
+  const [updateReady, setUpdateReady] = useState(false);
   const genRef = useRef<number | null>(null);
   const pending = useRef<MediaItem[]>([]);
   const frame = useRef<number | null>(null);
@@ -187,6 +189,9 @@ export function Workspace({
       window.xaver.notices.onOpen((p) => openNotice({ id: p.id, target: p.target, kind: "system", read: true }))
     ];
 
+    const trackUpdate = (s: { status: string }) => setUpdateReady(s.status === "available" || s.status === "ready");
+    off.push(window.xaver.updates.onChanged(trackUpdate));
+    void window.xaver.updates.state().then(trackUpdate).catch(() => {});
     void window.xaver.notices.list().then(setFeed).catch(() => {});
     void window.xaver.notices
       .takeOpen()
@@ -238,6 +243,7 @@ export function Workspace({
         onLock={lockable ? () => void window.xaver.security.lock() : undefined}
         shielded={Boolean(security?.hideFromCapture)}
         unread={feed.unread}
+        updateReady={updateReady}
         bellOpen={bellOpen}
         onBell={() => setBellOpen((o) => !o)}
       />
@@ -319,6 +325,7 @@ export function Workspace({
               initialCat={settingsCat}
             />
           )}
+          {view === "about" && config && <AboutView config={config} onChange={patchConfig} />}
           {view === "account" && <AccountView auth={auth} busy={busyAuth} setBusy={setBusyAuth} onAuth={setAuth} />}
         </div>
         {view === "run" || view === "jobs" ? (

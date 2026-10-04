@@ -4,6 +4,7 @@ import { applyCachedAppearance } from "./lib/appearance";
 import "./styles/theme.css";
 import "./styles/experience.css";
 import "./styles/notifications.css";
+import "./styles/about.css";
 
 applyCachedAppearance();
 

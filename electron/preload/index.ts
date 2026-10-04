@@ -4,8 +4,10 @@ import type {
   DbOverview,
   DbSearchRow,
   MigrateResult,
+  AppInfo,
   Notice,
   NoticeFeed,
+  UpdateState,
   NoticeTarget,
   SecurityPrefs,
   SecurityStatus,
@@ -116,6 +118,15 @@ const api = {
     onChanged: (cb: (f: NoticeFeed) => void): Unsub => on("notices:changed", (p) => cb(p as NoticeFeed)),
     onOpen: (cb: (p: { id: string; target?: NoticeTarget }) => void): Unsub =>
       on("notices:open", (p) => cb(p as { id: string; target?: NoticeTarget }))
+  },
+  updates: {
+    info: () => ipcRenderer.invoke("updates:info") as Promise<AppInfo>,
+    state: () => ipcRenderer.invoke("updates:state") as Promise<UpdateState>,
+    check: () => ipcRenderer.invoke("updates:check") as Promise<UpdateState>,
+    download: () => ipcRenderer.invoke("updates:download") as Promise<UpdateState>,
+    cancel: () => ipcRenderer.invoke("updates:cancel") as Promise<void>,
+    install: () => ipcRenderer.invoke("updates:install") as Promise<UpdateState>,
+    onChanged: (cb: (s: UpdateState) => void): Unsub => on("updates:changed", (p) => cb(p as UpdateState))
   },
   media: {
     stagePreview: (url: string) =>

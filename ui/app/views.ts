@@ -1,4 +1,4 @@
-export type ViewId = "run" | "library" | "database" | "jobs" | "settings" | "account";
+export type ViewId = "run" | "library" | "database" | "jobs" | "settings" | "account" | "about";
 
 export const VIEW_TITLES: Record<ViewId, { title: string; sub: string }> = {
   run: { title: "Scan", sub: "" },
@@ -6,5 +6,6 @@ export const VIEW_TITLES: Record<ViewId, { title: string; sub: string }> = {
   database: { title: "Database", sub: "Everything you've saved, indexed" },
   jobs: { title: "Jobs", sub: "Queue and history" },
   settings: { title: "Settings", sub: "Look, security, notifications and more" },
-  account: { title: "Account", sub: "Session and cookies" }
+  account: { title: "Account", sub: "Session and cookies" },
+  about: { title: "About", sub: "Version, updates and support" }
 };

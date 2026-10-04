@@ -1,0 +1,257 @@
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 920px;
+}
+
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 24px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(var(--accent-rgb), 0.16), transparent 55%),
+    var(--bg-1);
+}
+
+.about-logo {
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(var(--accent-rgb), 0.25);
+  animation: popIn 420ms var(--spring) both;
+}
+
+.about-hero-text h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.about-ver {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.about-card {
+  padding: 4px 0 6px;
+}
+
+.about-card .sec-group .btn {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.about-update {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 6px 18px 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--ink-rgb), 0.02);
+  animation: enterUp 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.about-update > div:not(.about-update-actions) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.about-update strong {
+  font-size: 14px;
+}
+
+.about-update .muted {
+  font-size: 12px;
+}
+
+.about-update.tone-new {
+  border-color: var(--accent-border);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), transparent 60%);
+}
+
+.about-update.tone-err {
+  border-color: rgba(224, 122, 122, 0.3);
+}
+
+.about-new-ver {
+  color: var(--accent);
+}
+
+.about-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-weight: 800;
+  color: var(--text-dim);
+  background: rgba(var(--ink-rgb), 0.06);
+}
+
+.about-badge.ok {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+
+.about-badge.err {
+  color: var(--err);
+  background: var(--err-soft);
+}
+
+.about-badge.new {
+  color: var(--on-accent);
+  background: var(--accent);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+.about-spinner {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 5px;
+  border: 2.5px solid rgba(var(--ink-rgb), 0.12);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: aboutSpin 800ms linear infinite;
+}
+
+@keyframes aboutSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.about-update-actions {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.about-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.about-bar {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--ink-rgb), 0.08);
+}
+
+.about-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 200ms linear;
+}
+
+.about-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: rgba(var(--ink-rgb), 0.03);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.about-notes h4 {
+  margin: 6px 0 2px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.about-notes p {
+  margin: 0;
+}
+
+.about-note-item {
+  position: relative;
+  padding-left: 14px;
+}
+
+.about-note-item::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 4px 18px 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--border);
+}
+
+.about-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--bg-1);
+}
+
+.about-grid .muted {
+  font-size: 11px;
+}
+
+.about-grid strong {
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+}
+
+.about-legal {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .about-update {
+    flex-wrap: wrap;
+  }
+  .about-update-actions {
+    flex-direction: row;
+  }
+}

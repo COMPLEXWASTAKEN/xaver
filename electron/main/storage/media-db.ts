@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, dialog, shell } from "electron";
-import { loadConfig, resolvedOutputRoot } from "./config";
+import { resolvedOutputRoot } from "./config";
 import { loadEngineModule } from "../engine/loader";
 import { databaseKey } from "../security/lock";
 import type { DbOverview, DbSearchRow, LegacyIndexStatus, MigrateResult } from "../../shared/types";
