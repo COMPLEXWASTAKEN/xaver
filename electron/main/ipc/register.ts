@@ -41,6 +41,7 @@ import {
   applyDbKey,
   dbBackup,
   dbCompact,
+  dbRelink,
   dbMigrateLegacy,
   dbOverview,
   dbPickAndMigrate,
@@ -178,6 +179,7 @@ function registerDatabase(): void {
   handle("db:prune", () => whenIdle(() => dbPruneMissing()));
   handle("db:rescan", () => whenIdle(() => dbRescan()));
   handle("db:compact", () => whenIdle(() => dbCompact()));
+  handle("db:relink", () => whenIdle(() => dbRelink(dialogParent())));
   handle("db:backup", () => dbBackup(dialogParent()));
   handle("db:reveal", () => dbReveal());
 }

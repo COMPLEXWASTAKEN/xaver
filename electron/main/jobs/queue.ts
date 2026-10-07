@@ -167,6 +167,7 @@ function engineOpts(cfg: ReturnType<typeof loadConfig>, signal?: AbortSignal) {
     includeGifs: cfg.includeGifs,
     skipHls: cfg.skipHls,
     sha256Dedupe: cfg.sha256Dedupe,
+    rememberDownloads: cfg.rememberDownloads,
     hideDownloaded: cfg.hideDownloaded,
     concurrency: cfg.downloadConcurrency,
     retries: cfg.retryCount,

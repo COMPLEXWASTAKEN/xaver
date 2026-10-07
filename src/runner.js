@@ -167,7 +167,7 @@ export async function runCollectJob(options, hooks = {}) {
     if (options.sha256Dedupe !== false && options.hideDownloaded !== false) {
       try {
         const db = await openDb(options);
-        knownMedia = createKnownMediaCheck(db);
+        knownMedia = createKnownMediaCheck(db, { remember: options.rememberDownloads !== false });
         const legacy = db.legacyStatus(options.outRoot);
         if (legacy && !legacy.importedAt) {
           onLog(`Old index found (${legacy.keys} entries). Migrate it on the Database page to hide those too.`);
@@ -314,6 +314,7 @@ export async function runDownloadJob(options, hooks = {}) {
       dedupe,
       runId,
       profile,
+      remember: options.rememberDownloads !== false,
       shared: layout !== "run",
       split: options.splitByType !== false,
       prefix: layout === "single" ? label : "",

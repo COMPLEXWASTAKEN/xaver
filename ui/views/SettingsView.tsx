@@ -64,6 +64,7 @@ const CATS: { id: SettingsCat; label: string; keys: (keyof AppConfig)[] }[] = [
       "includeGifs",
       "skipHls",
       "sha256Dedupe",
+      "rememberDownloads",
       "hideDownloaded",
       "filenamePattern"
     ]
@@ -331,8 +332,20 @@ export function SettingsView({
               </Row>
             )}
             {visible("SHA-256 dedupe") && (
-              <Row title="SHA-256 dedupe" hint="Skip downloads already present under output root.">
+              <Row title="SHA-256 dedupe" hint="Never save the same file twice, even if it was posted again.">
                 <Toggle on={config.sha256Dedupe} onChange={(v) => void set("sha256Dedupe", v)} />
+              </Row>
+            )}
+            {visible("Remember downloads", "moved deleted files dedupe history") && (
+              <Row
+                title="Remember downloads"
+                hint="Skip media you've saved before, even after you move or delete the files. Use Database → Remove missing to get specific ones again."
+              >
+                <Toggle
+                  on={config.rememberDownloads}
+                  disabled={!config.sha256Dedupe}
+                  onChange={(v) => void set("rememberDownloads", v)}
+                />
               </Row>
             )}
             {visible("Hide already downloaded", "gallery dedupe") && (

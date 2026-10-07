@@ -297,9 +297,10 @@ class MediaDb {
     this.lastSavedAt = Date.now();
   }
 
-  createKnownCheck() {
+  createKnownCheck({ remember = false } = {}) {
     const alive = new Map();
     const isAlive = (p) => {
+      if (remember) return true;
       if (!p) return false;
       if (!alive.has(p)) alive.set(p, fs.existsSync(p));
       return alive.get(p);
@@ -324,6 +325,11 @@ class MediaDb {
     const row = this.get("SELECT sha256, path, bytes, kind FROM files WHERE sha256 = ?", [sha256]);
     if (!row || !row.path || !fs.existsSync(row.path)) return null;
     return row;
+  }
+
+  knownFile(sha256, { remember = false } = {}) {
+    if (!remember) return this.aliveFile(sha256);
+    return this.get("SELECT sha256, path, bytes, kind FROM files WHERE sha256 = ?", [sha256]) || null;
   }
 
   linkKeys(keys, sha256) {

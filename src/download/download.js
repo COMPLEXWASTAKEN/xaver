@@ -101,9 +101,9 @@ export function sha256Buffer(buf) {
 
 export { sha256FileSync };
 
-export function createKnownMediaCheck(db) {
+export function createKnownMediaCheck(db, opts = {}) {
   if (!db) return () => null;
-  const check = db.createKnownCheck();
+  const check = db.createKnownCheck({ remember: opts.remember === true });
   return (item) => check(itemIndexKeys(item));
 }
 
@@ -344,7 +344,8 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
   const skipped = [];
   const errors = [];
   const usedNames = new Set();
-  const knownMedia = dedupe ? createKnownMediaCheck(db) : () => null;
+  const remember = options.remember === true;
+  const knownMedia = dedupe ? createKnownMediaCheck(db, { remember }) : () => null;
   const runHashes = new Map();
   const concurrency = Math.max(1, Math.min(8, Math.floor(Number(options.concurrency) || 1)));
   const retries = Math.max(0, Math.min(6, Math.floor(Number(options.retries) || 0)));
@@ -384,7 +385,7 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
 
         const hash = sha256Buffer(body);
 
-        const known = dedupe ? runHashes.get(hash) || (db ? db.aliveFile(hash) : null) : null;
+        const known = dedupe ? runHashes.get(hash) || (db ? db.knownFile(hash, { remember }) : null) : null;
         if (known) {
           db?.linkKeys(itemIndexKeys(item, usedUrl), hash);
           skipped.push({ url: item.url, sha256: hash, path: known.path, reason: "sha256" });

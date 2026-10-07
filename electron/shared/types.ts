@@ -46,6 +46,7 @@ export type AppConfig = {
   includeGifs: boolean;
   skipHls: boolean;
   sha256Dedupe: boolean;
+  rememberDownloads: boolean;
   hideDownloaded: boolean;
   filenamePattern: string;
   cookiePathOverride: string;
@@ -104,6 +105,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   includeGifs: true,
   skipHls: true,
   sha256Dedupe: true,
+  rememberDownloads: true,
   hideDownloaded: true,
   filenamePattern: "{kind}_{hash16}",
   cookiePathOverride: "",
@@ -223,6 +225,13 @@ export type LegacyIndexStatus = {
   keys: number;
   readable: boolean;
   importedAt: number | null;
+};
+
+export type RelinkResult = {
+  folder: string;
+  scanned: number;
+  found: number;
+  missing: number;
 };
 
 export type MigrateResult = {

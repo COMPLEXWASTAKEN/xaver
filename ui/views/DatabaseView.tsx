@@ -3,7 +3,7 @@ import type { DbFileRow, DbOverview } from "../../electron/shared/types";
 import { useCountUp } from "../lib/hooks/useCountUp";
 
 type Notice = { tone: "ok" | "warn" | "err"; text: string } | null;
-type Action = "migrate" | "migrateFile" | "verify" | "prune" | "rescan" | "compact" | "backup";
+type Action = "migrate" | "migrateFile" | "verify" | "prune" | "rescan" | "relink" | "compact" | "backup";
 
 function fmtBytes(n: number): string {
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -166,6 +166,17 @@ export function DatabaseView({ refreshKey }: { refreshKey: number }) {
           setNotice({
             tone: "ok",
             text: `Scanned ${fmtNum(r.scanned)} media files · ${fmtNum(r.added)} new ${r.added === 1 ? "file" : "files"} indexed.`
+          });
+          break;
+        }
+        case "relink": {
+          const r = await window.xaver.db.relink();
+          if (!r) break;
+          setNotice({
+            tone: r.found ? "ok" : "warn",
+            text: r.found
+              ? `Found ${fmtNum(r.found)} of your files in ${baseName(r.folder)}.${r.missing ? ` ${fmtNum(r.missing)} are still missing.` : " Everything is accounted for."}`
+              : `Looked at ${fmtNum(r.scanned)} media files in ${baseName(r.folder)} but none matched files you've downloaded.`
           });
           break;
         }
@@ -394,12 +405,16 @@ export function DatabaseView({ refreshKey }: { refreshKey: number }) {
             <span className="muted">Hash and index media already on disk. Last run {ago(data.lastRescanAt)}.</span>
           </div>
           <div className="db-action">
+            {btn("relink", "Find moved files…")}
+            <span className="muted">Moved your downloads somewhere else? Pick that folder and Xaver matches them up again.</span>
+          </div>
+          <div className="db-action">
             {btn("verify", "Verify files")}
             <span className="muted">Check that every indexed file still exists. Last run {ago(data.lastVerifyAt)}.</span>
           </div>
           <div className="db-action">
             {btn("prune", "Remove missing", "btn danger sm")}
-            <span className="muted">Forget files you deleted so they can be downloaded again.</span>
+            <span className="muted">Forget files that are gone so they can be downloaded again.</span>
           </div>
           <div className="db-action">
             {btn("migrateFile", "Import old index…")}

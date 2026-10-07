@@ -4,6 +4,7 @@ import type {
   DbOverview,
   DbSearchRow,
   MigrateResult,
+  RelinkResult,
   AppInfo,
   Notice,
   NoticeFeed,
@@ -97,6 +98,7 @@ const api = {
     prune: () => ipcRenderer.invoke("db:prune") as Promise<{ removedFiles: number; removedKeys: number }>,
     rescan: () => ipcRenderer.invoke("db:rescan") as Promise<{ scanned: number; added: number }>,
     compact: () => ipcRenderer.invoke("db:compact") as Promise<{ ok: boolean }>,
+    relink: () => ipcRenderer.invoke("db:relink") as Promise<RelinkResult | null>,
     backup: () => ipcRenderer.invoke("db:backup") as Promise<string | null>,
     reveal: () => ipcRenderer.invoke("db:reveal") as Promise<void>
   },

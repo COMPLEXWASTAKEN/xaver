@@ -4,7 +4,7 @@ import { app, BrowserWindow, dialog, shell } from "electron";
 import { resolvedOutputRoot } from "./config";
 import { loadEngineModule } from "../engine/loader";
 import { databaseKey } from "../security/lock";
-import type { DbOverview, DbSearchRow, LegacyIndexStatus, MigrateResult } from "../../shared/types";
+import type { DbOverview, DbSearchRow, LegacyIndexStatus, MigrateResult, RelinkResult } from "../../shared/types";
 
 const DB_FILE_NAME = "media-index.sqlite";
 
@@ -96,6 +96,17 @@ export function dbRescan() {
     const root = resolvedOutputRoot();
     if (!root || !fs.existsSync(root)) throw new Error("Output folder does not exist yet.");
     return (await db()).seedFromDisk(root);
+  });
+}
+
+export function dbRelink(win: BrowserWindow | null): Promise<RelinkResult | null> {
+  return exclusive(async () => {
+    const opts = { title: "Find moved files", properties: ["openDirectory"] as ("openDirectory")[] };
+    const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    if (res.canceled || !res.filePaths[0]) return null;
+    const d = await db();
+    const { scanned, added } = d.seedFromDisk(res.filePaths[0]);
+    return { folder: res.filePaths[0], scanned, found: added, missing: d.verify().missing };
   });
 }
 
