@@ -38,7 +38,7 @@ const tag = `v${version}`;
 if (run("git", ["status", "--porcelain"], { quiet: true })) fail("commit or stash your changes first");
 const branch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"], { quiet: true });
 if (branch !== "main") fail(`releases are cut from main (you're on ${branch})`);
-run("git", ["fetch", "--tags", "origin"], { quiet: true });
+run("git", ["fetch", "--tags", "--force", "origin"], { quiet: true });
 if (run("git", ["tag", "--list", tag], { quiet: true })) fail(`${tag} already exists`);
 const behind = run("git", ["rev-list", "--count", "HEAD..origin/main"], { quiet: true });
 if (behind !== "0") fail(`main is ${behind} commit(s) behind origin. Pull first.`);
