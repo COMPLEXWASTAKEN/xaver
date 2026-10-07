@@ -22,8 +22,12 @@ Please don't open a public issue for security problems. Use GitHub's private vul
 
 | Package | Where it's used | Why it's acceptable for now |
 |---|---|---|
-| `http-cache-semantics` | Build tooling only (`electron-builder` → `@electron/get` → `got`) | Used once at build time to download Electron. It never ships in the app. |
+| `sprintf-js` | Build tooling only (`electron-builder` → `@electron/get` → `global-agent` → `roarr`) | Only formats log lines from the Electron download at build time, never with outside input. It never ships in the app. npm lists it once per package in that chain, so it shows up as 8 moderate findings. |
 
-ShardX still asks for `adm-zip` 0.5, which has several advisories. `package.json` overrides it to 0.6.1, the patched release, and ShardX's browser download and unpacking were tested against it.
+Some dependencies still ask for older releases with known advisories, so `package.json` overrides them to the patched ones:
+
+- `adm-zip` 0.6.1 for ShardX, whose browser download and unpacking were tested against it.
+- `http-cache-semantics` 4.3.0 for electron-builder's download client.
+- `source-map-js` 1.2.2 for Vite's CSS tooling.
 
 Dependabot checks dependencies weekly, so this gets picked up as soon as a fix lands.

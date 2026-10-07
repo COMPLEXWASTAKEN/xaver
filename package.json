@@ -59,7 +59,9 @@
     "vite": "^6.1.0"
   },
   "overrides": {
-    "adm-zip": "^0.6.1"
+    "adm-zip": "^0.6.1",
+    "http-cache-semantics": "^4.3.0",
+    "source-map-js": "^1.2.2"
   },
   "build": {
     "appId": "app.xaver.desktop",
