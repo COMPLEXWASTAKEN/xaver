@@ -257,8 +257,10 @@ export async function runDownloadJob(options, hooks = {}) {
   const stamp = defaultStamp();
   const label = sanitizeLabel(options.label || options.profilePath || "media");
   const layout = options.folderLayout === "profile" || options.folderLayout === "single" ? options.folderLayout : "run";
-  const runDir =
-    layout === "single"
+  const reuse = Boolean(options.runDir && path.isAbsolute(options.runDir) && isInside(options.runDir, outRoot));
+  const runDir = reuse
+    ? options.runDir
+    : layout === "single"
       ? path.join(outRoot, folderName(options.singleFolderName))
       : path.join(outRoot, layout === "profile" ? label : `${label}_${stamp}`);
 
@@ -315,7 +317,7 @@ export async function runDownloadJob(options, hooks = {}) {
       runId,
       profile,
       remember: options.rememberDownloads !== false,
-      shared: layout !== "run",
+      shared: reuse || layout !== "run",
       split: options.splitByType !== false,
       prefix: layout === "single" ? label : "",
       signal,
@@ -342,7 +344,7 @@ export async function runDownloadJob(options, hooks = {}) {
       throwIfAborted(signal);
       zipPath = path.join(outRoot, `${label}_${stamp}.zip`);
       onProgress({ phase: "zipping", message: "Building ZIP…" });
-      if (layout === "run") await zipFolderToFile(runDir, zipPath);
+      if (layout === "run" && !reuse) await zipFolderToFile(runDir, zipPath);
       else await zipFilesToFile(saved.map((f) => f.path), runDir, zipPath);
     }
 
@@ -365,6 +367,11 @@ export async function runDownloadJob(options, hooks = {}) {
       db?.flushNow();
     } catch {}
   }
+}
+
+function isInside(target, root) {
+  const rel = path.relative(path.resolve(root), path.resolve(target));
+  return Boolean(rel) && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
 function folderName(raw) {

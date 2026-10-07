@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MediaItem } from "../../../electron/shared/types";
 import { playSrc, proxyUrl, tilePreviewSrc } from "../../lib/mediaUrl";
 import { VideoPlayer } from "./VideoPlayer";
@@ -12,7 +12,9 @@ export function MediaViewer({
   onChange,
   onToggleSelect,
   onDownload,
-  downloadLabel = "Download"
+  downloadLabel = "Download",
+  note,
+  hint = "← → browse · Space play/pause · S select · D download · F fullscreen · Esc close"
 }: {
   items: MediaItem[];
   current: MediaItem;
@@ -23,9 +25,13 @@ export function MediaViewer({
   onToggleSelect: (url: string) => void;
   onDownload: (url: string) => void;
   downloadLabel?: string;
+  note?: (item: MediaItem) => ReactNode;
+  hint?: string;
 }) {
   const [playUrl, setPlayUrl] = useState("");
   const [status, setStatus] = useState("");
+  const [broken, setBroken] = useState<Set<string>>(() => new Set());
+  const markBroken = (url: string) => setBroken((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
   const stripRef = useRef<HTMLDivElement | null>(null);
 
   const index = useMemo(() => items.findIndex((x) => x.url === current.url), [items, current.url]);
@@ -113,6 +119,7 @@ export function MediaViewer({
               {index >= 0 ? `${index + 1} / ${items.length}` : "—"}
             </span>
             {status ? <span className="muted">{status}</span> : null}
+            {note ? note(current) : null}
           </div>
           <div className="mv-actions">
             <button type="button" className="btn sm" onClick={() => onToggleSelect(current.url)}>
@@ -150,7 +157,13 @@ export function MediaViewer({
                 </div>
               )
             ) : (
-              <img className="mv-image" src={tilePreviewSrc(current)} alt="" />
+              !broken.has(current.url) && tilePreviewSrc(current) ? (
+                <img className="mv-image" src={tilePreviewSrc(current)} alt="" onError={() => markBroken(current.url)} />
+              ) : (
+                <div className="mv-loading">
+                  <span className="muted">Preview not available</span>
+                </div>
+              )
             )}
           </div>
           <button type="button" className="mv-nav mv-next" aria-label="Next" onClick={() => go(1)} />
@@ -170,16 +183,18 @@ export function MediaViewer({
                 onClick={() => onChange(it)}
                 title={`${i + 1}`}
               >
-                {src ? <img src={src} alt="" loading="lazy" /> : <div className="tile-fallback" />}
+                {src && !broken.has(it.url) ? (
+                  <img src={src} alt="" loading="lazy" onError={() => markBroken(it.url)} />
+                ) : (
+                  <div className="tile-fallback" />
+                )}
                 {vid ? <span className="tile-play mv-thumb-play" aria-hidden /> : null}
               </button>
             );
           })}
         </div>
 
-        <footer className="mv-hint muted">
-          ← → browse · Space play/pause · S select · D download · F fullscreen · Esc close
-        </footer>
+        <footer className="mv-hint muted">{hint}</footer>
       </div>
     </div>
   );

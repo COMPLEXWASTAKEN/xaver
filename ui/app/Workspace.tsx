@@ -19,6 +19,7 @@ import { errorText, toast } from "../lib/toasts";
 import { AboutView } from "../views/AboutView";
 import { AccountView } from "../views/AccountView";
 import { DatabaseView } from "../views/DatabaseView";
+import { FailedView } from "../views/FailedView";
 import { JobsView } from "../views/JobsView";
 import { LibraryView } from "../views/LibraryView";
 import { RunView } from "../views/RunView";
@@ -68,6 +69,7 @@ export function Workspace({
   const [bellOpen, setBellOpen] = useState(false);
   const [settingsCat, setSettingsCat] = useState<SettingsCat | undefined>();
   const [updateReady, setUpdateReady] = useState(false);
+  const [failedCount, setFailedCount] = useState(0);
   const genRef = useRef<number | null>(null);
   const pending = useRef<MediaItem[]>([]);
   const frame = useRef<number | null>(null);
@@ -192,6 +194,9 @@ export function Workspace({
     const trackUpdate = (s: { status: string }) => setUpdateReady(s.status === "available" || s.status === "ready");
     off.push(window.xaver.updates.onChanged(trackUpdate));
     void window.xaver.updates.state().then(trackUpdate).catch(() => {});
+    const trackFailed = (s: { items: unknown[] }) => setFailedCount(s.items.length);
+    off.push(window.xaver.failures.onChanged(trackFailed));
+    void window.xaver.failures.list().then(trackFailed).catch(() => {});
     void window.xaver.notices.list().then(setFeed).catch(() => {});
     void window.xaver.notices
       .takeOpen()
@@ -244,6 +249,7 @@ export function Workspace({
         shielded={Boolean(security?.hideFromCapture)}
         unread={feed.unread}
         updateReady={updateReady}
+        failedCount={failedCount}
         bellOpen={bellOpen}
         onBell={() => setBellOpen((o) => !o)}
       />
@@ -303,6 +309,7 @@ export function Workspace({
           )}
           {view === "library" && <LibraryView liveItems={liveItems} />}
           {view === "database" && <DatabaseView refreshKey={dbRefresh} />}
+          {view === "failed" && <FailedView busy={downloading || scanning} onOpenJobs={() => go("jobs")} />}
           {view === "jobs" && (
             <JobsView
               queue={queue}
@@ -310,6 +317,8 @@ export function Workspace({
               activeJobId={activeJobId}
               onCancel={(id) => window.xaver.jobs.cancel(id)}
               onOpen={(p) => window.xaver.library.openPath(p).catch((e) => fail("Couldn't open that", e))}
+              failedCount={failedCount}
+              onFailed={() => go("failed")}
             />
           )}
           {view === "settings" && config && (

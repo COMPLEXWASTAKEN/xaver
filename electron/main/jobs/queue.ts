@@ -2,7 +2,14 @@ import fs from "node:fs";
 import { BrowserWindow, shell } from "electron";
 import { getAuthStatus, getSessionCookies, getShardxCacheDir } from "../auth/session";
 import { loadConfig, loadHistory, resolvedOutputRoot, safeFolderName, safeLaunchArgs, saveHistory } from "../storage/config";
-import type { JobProgress, JobRecord, MediaItem } from "../../shared/types";
+import type { FailedDownload, FailReason, JobProgress, JobRecord, MediaItem } from "../../shared/types";
+import { classify, failureKey, markRetrying, pickFailures, recordFailures, resolveFailures } from "./failures";
+
+type DownloadEntry = { url?: string; path?: string; sha256?: string; bytes?: number };
+type DownloadError = { url: string; err: string; status?: number; item?: MediaItem };
+
+const HOPELESS = new Set<FailReason>(["gone", "denied", "notmedia"]);
+const SECOND_PASS_DELAY_MS = 4000;
 import { loadEngineModule } from "../engine/loader";
 import { mediaDbPath } from "../storage/media-db";
 import { databaseKey, isLocked } from "../security/lock";
@@ -403,22 +410,62 @@ async function runCollect(job: JobRecord): Promise<void> {
 export async function downloadSelection(urls?: string[]): Promise<JobRecord> {
   if (downloading) throw new Error("A download is already running.");
   if (pumping) throw new Error("Wait for the scan to finish.");
-
-  const cfg = loadConfig();
-  const cookies = getSessionCookies();
-  if (!cookies.length) throw new Error("No session. Sign in first.");
-
   let items = [...liveItems];
   if (Array.isArray(urls) && urls.length) {
     const set = new Set(urls);
     items = items.filter((it) => set.has(it.url) || (it.id ? set.has(it.id) : false));
   }
   if (!items.length) throw new Error("No media selected.");
+  return runDownload(items, { profilePath: lastProfilePath || null, live: true });
+}
+
+export async function retryFailed(keys?: string[]): Promise<{ jobs: number; saved: number; failed: number }> {
+  if (downloading) throw new Error("A download is already running.");
+  if (pumping) throw new Error("Wait for the scan to finish.");
+  if (!getSessionCookies().length) throw new Error("No session. Sign in first.");
+  const picked = pickFailures(keys);
+  if (!picked.length) throw new Error("Nothing to retry.");
+  const groups = new Map<string, FailedDownload[]>();
+  for (const f of picked) {
+    const g = `${f.profile || ""}|${f.runDir || ""}`;
+    groups.set(g, [...(groups.get(g) || []), f]);
+  }
+  const all = picked.map((f) => f.key);
+  markRetrying(all, true);
+  let jobs = 0;
+  let saved = 0;
+  let failed = 0;
+  try {
+    for (const group of groups.values()) {
+      const head = group[0];
+      const job = await runDownload(group.map((f) => f.item), { profilePath: head.profile, runDir: head.runDir, retry: true }, () =>
+        markRetrying(group.map((f) => f.key), false)
+      );
+      jobs++;
+      saved += job.saved + job.skipped;
+      failed += job.errors;
+      if (job.status === "cancelled") break;
+    }
+  } finally {
+    markRetrying(all, false);
+  }
+  return { jobs, saved, failed };
+}
+
+async function runDownload(
+  items: MediaItem[],
+  opts: { profilePath: string | null; runDir?: string | null; retry?: boolean; live?: boolean },
+  beforeRecord?: () => void
+): Promise<JobRecord> {
+  if (downloading) throw new Error("A download is already running.");
+  const cfg = loadConfig();
+  const cookies = getSessionCookies();
+  if (!cookies.length) throw new Error("No session. Sign in first.");
 
   const job: JobRecord = {
     id: uid(),
-    target: lastProfilePath || "selection",
-    profilePath: lastProfilePath || undefined,
+    target: opts.retry ? `Retry · ${opts.profilePath || "selection"}` : opts.profilePath || "selection",
+    profilePath: opts.profilePath || undefined,
     status: "downloading",
     createdAt: new Date().toISOString(),
     startedAt: new Date().toISOString(),
@@ -426,13 +473,14 @@ export async function downloadSelection(urls?: string[]): Promise<JobRecord> {
     saved: 0,
     skipped: 0,
     errors: 0,
-    logs: [`Downloading ${items.length}`]
+    logs: [opts.retry ? `Retrying ${items.length}` : `Downloading ${items.length}`]
   };
 
   const gen = scanGeneration;
   downloading = true;
   activeJobId = job.id;
   downloadAbort = new AbortController();
+  const signal = downloadAbort.signal;
   history.unshift(job);
   if (history.length > 200) history.length = 200;
   taskbar(0);
@@ -441,69 +489,104 @@ export async function downloadSelection(urls?: string[]): Promise<JobRecord> {
 
   try {
     const { runDownloadJob } = await loadRunner();
-    const result = await runDownloadJob(
-      {
-        cookies,
-        items,
-        profilePath: lastProfilePath || undefined,
-        label: lastProfilePath || "media",
-        ...engineOpts(cfg, downloadAbort.signal)
+    const hooks = {
+      onLog: (msg: string) => pushLog(job, msg),
+      onProgress: (p: Record<string, unknown>) => {
+        if (p.phase === "zipping") job.status = "zipping";
+        if (typeof p.saved === "number") job.saved = p.saved as number;
+        if (typeof p.skipped === "number") job.skipped = p.skipped as number;
+        if (typeof p.failed === "number") job.errors = p.failed as number;
+        const total = Number(p.downloadTotal) || 0;
+        if (p.phase === "zipping") taskbar(2, "indeterminate");
+        else if (total > 0) taskbar(Math.min(1, (Number(p.downloadDone) || 0) / total));
+        emit("jobs:progress", {
+          jobId: job.id,
+          phase: String(p.phase || "downloading"),
+          message: String(p.message || ""),
+          downloadDone: p.downloadDone as number | undefined,
+          downloadTotal: p.downloadTotal as number | undefined,
+          saved: p.saved as number | undefined,
+          skipped: p.skipped as number | undefined,
+          failed: p.failed as number | undefined,
+          mediaCount: items.length
+        } satisfies JobProgress);
+        emit("jobs:updated", snapshot());
       },
-      {
-        onLog: (msg: string) => pushLog(job, msg),
-        onProgress: (p: Record<string, unknown>) => {
-          if (p.phase === "zipping") job.status = "zipping";
-          if (typeof p.saved === "number") job.saved = p.saved as number;
-          if (typeof p.skipped === "number") job.skipped = p.skipped as number;
-          if (typeof p.failed === "number") job.errors = p.failed as number;
-          const total = Number(p.downloadTotal) || 0;
-          if (p.phase === "zipping") taskbar(2, "indeterminate");
-          else if (total > 0) taskbar(Math.min(1, (Number(p.downloadDone) || 0) / total));
-          emit("jobs:progress", {
-            jobId: job.id,
-            phase: String(p.phase || "downloading"),
-            message: String(p.message || ""),
-            downloadDone: p.downloadDone as number | undefined,
-            downloadTotal: p.downloadTotal as number | undefined,
-            saved: p.saved as number | undefined,
-            skipped: p.skipped as number | undefined,
-            failed: p.failed as number | undefined,
-            mediaCount: items.length
-          } satisfies JobProgress);
-          emit("jobs:updated", snapshot());
-        },
-        onItem: (item: MediaItem) => {
-          if (gen !== scanGeneration) return;
-          const idx = findLive(item);
-          if (idx >= 0) liveItems[idx] = { ...liveItems[idx], ...item };
-          emit("jobs:item", { jobId: job.id, generation: gen, item });
-        }
+      onItem: (item: MediaItem) => {
+        if (!opts.live || gen !== scanGeneration) return;
+        const idx = findLive(item);
+        if (idx >= 0) liveItems[idx] = { ...liveItems[idx], ...item };
+        emit("jobs:item", { jobId: job.id, generation: gen, item });
       }
+    };
+    const base = {
+      cookies,
+      profilePath: opts.profilePath || undefined,
+      label: opts.profilePath || "media",
+      ...engineOpts(cfg, signal)
+    };
+    const result = await runDownloadJob(
+      { ...base, items, ...(opts.runDir ? { runDir: opts.runDir } : {}), ...(opts.retry ? { wantZip: false } : {}) },
+      hooks
     );
+    let saved: DownloadEntry[] = [...result.saved];
+    let skipped: DownloadEntry[] = [...result.skipped];
+    let errors: DownloadError[] = [...result.errors];
+
+    const again = errors.filter((e) => e.item && !HOPELESS.has(classify(e.status || 0, e.err)));
+    if (cfg.retryFailedPass && !opts.retry && again.length && !signal.aborted) {
+      pushLog(job, `Trying ${plural(again.length, "failed file")} once more`);
+      await new Promise((r) => setTimeout(r, SECOND_PASS_DELAY_MS));
+      if (signal.aborted) throw Object.assign(new Error("Cancelled"), { name: "AbortError" });
+      const second = await runDownloadJob(
+        { ...base, items: again.map((e) => e.item!), runDir: result.runDir, wantZip: false },
+        { ...hooks, onProgress: () => {} }
+      );
+      const recovered = second.saved.length + second.skipped.length;
+      errors = [...errors.filter((e) => !again.includes(e)), ...second.errors];
+      saved = [...saved, ...second.saved];
+      skipped = [...skipped, ...second.skipped];
+      if (recovered) pushLog(job, `Recovered ${recovered} on the second try`);
+    }
 
     job.status = "done";
     job.runDir = result.runDir;
     job.zipPath = result.zipPath;
-    job.saved = result.saved.length;
-    job.skipped = result.skipped.length;
-    job.errors = result.errors.length;
+    job.saved = saved.length;
+    job.skipped = skipped.length;
+    job.errors = errors.length;
     job.finishedAt = new Date().toISOString();
     pushLog(job, `Saved ${job.saved}`);
 
-    if (cfg.openFolderOnComplete && job.runDir) {
+    const failedKeys = new Set(errors.map((e) => (e.item ? failureKey(e.item) : e.url)));
+    beforeRecord?.();
+    resolveFailures(items.filter((it) => !failedKeys.has(failureKey(it))));
+    recordFailures(errors, { profile: opts.profilePath || null, runDir: result.runDir || null });
+
+    if (cfg.openFolderOnComplete && job.runDir && !opts.retry) {
       shell.openPath(job.runDir).catch(() => {});
     }
 
     emit("jobs:done", { job, phase: "downloaded" });
     persist();
     settle(job.errors === 0 || job.saved > 0);
+    const allFailed = job.errors > 0 && !job.saved && !job.skipped;
+    const title = opts.retry
+      ? job.errors
+        ? allFailed
+          ? "Retry didn't work"
+          : "Retry partly worked"
+        : "Retry worked"
+      : allFailed
+        ? "Download failed"
+        : "Download finished";
     notify({
       kind: "download",
-      tone: job.errors ? (job.saved ? "warn" : "error") : "ok",
-      title: job.errors && !job.saved ? "Download failed" : "Download finished",
+      tone: job.errors ? (allFailed ? "error" : "warn") : "ok",
+      title,
       body: `${plural(job.saved, "file")} saved${job.skipped ? ` · ${job.skipped} skipped` : ""}${job.errors ? ` · ${job.errors} failed` : ""}`,
-      target: "library",
-      ...(job.runDir ? { path: job.runDir } : {})
+      target: job.errors ? "failed" : "library",
+      ...(job.runDir && !job.errors ? { path: job.runDir } : {})
     });
     return job;
   } catch (e) {
@@ -517,6 +600,7 @@ export async function downloadSelection(urls?: string[]): Promise<JobRecord> {
     persist();
     if (cancelled) taskbar(-1);
     else reportFailure("Download", msg);
+    if (opts.retry && cancelled) return job;
     throw e;
   } finally {
     downloading = false;

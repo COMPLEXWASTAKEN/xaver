@@ -46,6 +46,7 @@ export type AppConfig = {
   includeGifs: boolean;
   skipHls: boolean;
   sha256Dedupe: boolean;
+  retryFailedPass: boolean;
   rememberDownloads: boolean;
   hideDownloaded: boolean;
   filenamePattern: string;
@@ -105,6 +106,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   includeGifs: true,
   skipHls: true,
   sha256Dedupe: true,
+  retryFailedPass: true,
   rememberDownloads: true,
   hideDownloaded: true,
   filenamePattern: "{kind}_{hash16}",
@@ -176,6 +178,26 @@ export type JobRecord = {
   zipPath?: string | null;
   errorMessage?: string;
   logs: string[];
+};
+
+export type FailReason = "gone" | "denied" | "limited" | "timeout" | "network" | "notmedia" | "other";
+
+export type FailedDownload = {
+  key: string;
+  item: MediaItem;
+  profile: string | null;
+  runDir: string | null;
+  reason: FailReason;
+  error: string;
+  status: number;
+  attempts: number;
+  firstFailedAt: number;
+  lastFailedAt: number;
+};
+
+export type FailedState = {
+  items: FailedDownload[];
+  retrying: string[];
 };
 
 export type JobProgress = {
@@ -317,7 +339,7 @@ export type NoticeKind = "scan" | "download" | "failure" | "session" | "database
 
 export type NoticeTone = "ok" | "info" | "warn" | "error";
 
-export type NoticeTarget = "run" | "library" | "database" | "jobs" | "settings" | "account" | "about";
+export type NoticeTarget = "run" | "library" | "database" | "jobs" | "failed" | "settings" | "account" | "about";
 
 export type Notice = {
   id: string;

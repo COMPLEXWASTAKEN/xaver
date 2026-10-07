@@ -13,7 +13,8 @@ import {
   pickAndImportCookieFile,
   refreshScreenName
 } from "../auth/session";
-import { cancelJob, downloadSelection, enqueueJob, getLiveItems, listJobs, revealPath } from "../jobs/queue";
+import { cancelJob, downloadSelection, enqueueJob, getLiveItems, listJobs, retryFailed, revealPath } from "../jobs/queue";
+import { dismissFailures, failureState } from "../jobs/failures";
 import {
   clearNotices,
   markNoticesRead,
@@ -155,6 +156,9 @@ function registerJobs(): void {
   handle("jobs:liveItems", () => getLiveItems());
   handle("jobs:download", (_e, urls?: string[]) => downloadSelection(urls));
   handle("jobs:downloadAll", () => downloadSelection());
+  handle("failures:list", () => failureState());
+  handle("failures:retry", (_e, keys?: string[]) => retryFailed(Array.isArray(keys) ? keys.map(String) : undefined));
+  handle("failures:dismiss", (_e, keys?: string[]) => dismissFailures(Array.isArray(keys) ? keys.map(String) : undefined));
 }
 
 function registerLibrary(): void {

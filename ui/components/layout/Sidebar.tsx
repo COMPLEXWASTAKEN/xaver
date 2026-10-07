@@ -60,6 +60,15 @@ function Icon({ name }: { name: ViewId }) {
           <path d="M4 20c1.5-4 14.5-4 16 0" />
         </svg>
       );
+    case "failed":
+      return (
+        <svg {...common}>
+          <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+          <path d="M20 4v4h-4" />
+          <path d="M12 8.5v4" />
+          <path d="M12 15.6v.01" />
+        </svg>
+      );
     case "about":
       return (
         <svg {...common}>
@@ -76,6 +85,7 @@ const ITEMS: { id: ViewId; label: string }[] = [
   { id: "library", label: "Library" },
   { id: "database", label: "Database" },
   { id: "jobs", label: "Jobs" },
+  { id: "failed", label: "Failed" },
   { id: "settings", label: "Settings" },
   { id: "account", label: "Account" },
   { id: "about", label: "About" }
@@ -90,6 +100,7 @@ export function Sidebar({
   shielded,
   unread = 0,
   updateReady = false,
+  failedCount = 0,
   bellOpen = false,
   onBell
 }: {
@@ -101,6 +112,7 @@ export function Sidebar({
   shielded?: boolean;
   unread?: number;
   updateReady?: boolean;
+  failedCount?: number;
   bellOpen?: boolean;
   onBell?: () => void;
 }) {
@@ -132,6 +144,11 @@ export function Sidebar({
             ) : null}
             {it.id === "jobs" && activeJob ? <span className="nav-dot run" /> : null}
             {it.id === "about" && updateReady ? <span className="nav-dot run" /> : null}
+            {it.id === "failed" && failedCount ? (
+              <span key={failedCount} className="nav-badge nav-badge-err">
+                {failedCount > 99 ? "99+" : failedCount}
+              </span>
+            ) : null}
           </button>
         ))}
       </nav>

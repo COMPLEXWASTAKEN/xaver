@@ -13,13 +13,17 @@ export function JobsView({
   history,
   activeJobId,
   onCancel,
-  onOpen
+  onOpen,
+  failedCount = 0,
+  onFailed
 }: {
   queue: JobRecord[];
   history: JobRecord[];
   activeJobId: string | null;
   onCancel: (id: string) => void;
   onOpen: (path: string) => void;
+  failedCount?: number;
+  onFailed?: () => void;
 }) {
   return (
     <div className="panel">
@@ -97,6 +101,11 @@ export function JobsView({
                     {j.finishedAt ? new Date(j.finishedAt).toLocaleString() : "—"}
                   </td>
                   <td className="row">
+                    {j.errors > 0 && failedCount > 0 && onFailed ? (
+                      <button type="button" className="btn sm" onClick={onFailed}>
+                        Retry failed
+                      </button>
+                    ) : null}
                     {j.runDir ? (
                       <button type="button" className="btn sm" onClick={() => onOpen(j.runDir!)}>
                         Folder

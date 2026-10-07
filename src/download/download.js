@@ -448,7 +448,7 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
         tick();
       } catch (e) {
         if (signal?.aborted || e?.name === "AbortError") throw abortError();
-        errors.push({ url: item.url, err: String(e?.message || e) });
+        errors.push({ url: item.url, err: String(e?.message || e), status: Number(e?.status) || 0, item });
         tick();
       }
     }

@@ -6,6 +6,7 @@ import { ensureShardxReady } from "./auth/session";
 import { registerIpc } from "./ipc/register";
 import { initJobsFromDisk, stopAll, whenIdle } from "./jobs/queue";
 import { flushNotices, initNotifications } from "./notifications/center";
+import { flushFailures } from "./jobs/failures";
 import { initUpdates } from "./app/updates";
 import { handleMediaProtocols, purgePreviewCache, registerMediaSchemes } from "./protocols/media";
 import { attachWindow, initSecurity, revealWindow } from "./security/lock";
@@ -67,6 +68,7 @@ app.on("before-quit", (e) => {
       await flushMediaDb();
     } catch {}
     flushNotices();
+    flushFailures();
     purgePreviewCache();
     cleanedUp = true;
     app.quit();

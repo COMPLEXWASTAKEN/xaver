@@ -1,0 +1,322 @@
+.nav-badge-err {
+  background: var(--err);
+  color: #fff;
+}
+
+.failed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.failed-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(224, 122, 122, 0.12), transparent 55%),
+    var(--bg-1);
+}
+
+.failed-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.failed-summary strong {
+  font-size: 16px;
+}
+
+.failed-summary .muted {
+  font-size: 12px;
+}
+
+.failed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.failed-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.failed-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.02);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.failed-chip span {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.failed-chip:hover {
+  color: var(--text);
+}
+
+.failed-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.failed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.failed-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  animation: enterUp 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 160ms ease, transform 220ms var(--spring), box-shadow 220ms ease;
+}
+
+.failed-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+}
+
+.failed-card.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.failed-card.busy {
+  border-color: var(--accent-border);
+}
+
+.failed-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: rgba(var(--ink-rgb), 0.05);
+  cursor: zoom-in;
+}
+
+.failed-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.85);
+  transition: transform 300ms ease, filter 300ms ease;
+}
+
+.failed-card:hover .failed-thumb img {
+  transform: scale(1.04);
+  filter: none;
+}
+
+.failed-thumb .tile-play {
+  opacity: 1;
+}
+
+.failed-thumb-none {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-mute);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.failed-kind {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.failed-spin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.failed-spin span {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: aboutSpin 800ms linear infinite;
+}
+
+.failed-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease, background 160ms ease;
+}
+
+.failed-card:hover .failed-check,
+.failed-check.on {
+  opacity: 1;
+}
+
+.failed-check.on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.failed-check.on::after {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.failed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 4px;
+  min-width: 0;
+}
+
+.failed-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.failed-pill {
+  display: inline-flex;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: rgba(var(--ink-rgb), 0.07);
+}
+
+.failed-pill.tone-warn,
+.failed-chip.tone-warn.on {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.failed-pill.tone-err,
+.failed-chip.tone-err.on {
+  color: var(--err);
+  background: var(--err-soft);
+}
+
+.failed-chip.tone-warn.on {
+  border-color: var(--warn);
+}
+
+.failed-chip.tone-err.on {
+  border-color: var(--err);
+}
+
+.failed-tries {
+  font-size: 11px;
+}
+
+.failed-err {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.failed-meta {
+  font-size: 11px;
+}
+
+.failed-card-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 12px;
+}
+
+.failed-card-actions .btn.primary {
+  flex: 1;
+}
+
+.failed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+  margin: 40px auto;
+  padding: 36px 28px;
+  text-align: center;
+}
+
+.failed-empty h3 {
+  margin: 6px 0 0;
+}
+
+.failed-empty p {
+  margin: 0 0 8px;
+}
+
+.failed-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  color: var(--ok);
+  background: var(--ok-soft);
+  font-size: 24px;
+  font-weight: 800;
+  animation: popIn 420ms var(--spring) both;
+}
+
+.mv-meta .failed-pill {
+  cursor: help;
+}

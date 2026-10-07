@@ -65,6 +65,7 @@ const CATS: { id: SettingsCat; label: string; keys: (keyof AppConfig)[] }[] = [
       "skipHls",
       "sha256Dedupe",
       "rememberDownloads",
+      "retryFailedPass",
       "hideDownloaded",
       "filenamePattern"
     ]
@@ -334,6 +335,14 @@ export function SettingsView({
             {visible("SHA-256 dedupe") && (
               <Row title="SHA-256 dedupe" hint="Never save the same file twice, even if it was posted again.">
                 <Toggle on={config.sha256Dedupe} onChange={(v) => void set("sha256Dedupe", v)} />
+              </Row>
+            )}
+            {visible("Second try for failed files", "retry failed downloads automatically") && (
+              <Row
+                title="Second try for failed files"
+                hint="When a download finishes, wait a moment and try anything that failed once more. Anything still failing goes to Failed."
+              >
+                <Toggle on={config.retryFailedPass} onChange={(v) => void set("retryFailedPass", v)} />
               </Row>
             )}
             {visible("Remember downloads", "moved deleted files dedupe history") && (

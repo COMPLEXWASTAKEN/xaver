@@ -4,6 +4,7 @@ import type {
   DbOverview,
   DbSearchRow,
   MigrateResult,
+  FailedState,
   RelinkResult,
   AppInfo,
   Notice,
@@ -45,6 +46,12 @@ const api = {
     profileDir: () => ipcRenderer.invoke("auth:profileDir"),
     onLoginWaiting: (cb: (payload: { message: string }) => void): Unsub =>
       on("auth:login-waiting", (p) => cb(p as { message: string }))
+  },
+  failures: {
+    list: () => ipcRenderer.invoke("failures:list") as Promise<FailedState>,
+    retry: (keys?: string[]) => ipcRenderer.invoke("failures:retry", keys) as Promise<{ jobs: number; saved: number; failed: number }>,
+    dismiss: (keys?: string[]) => ipcRenderer.invoke("failures:dismiss", keys) as Promise<number>,
+    onChanged: (cb: (s: FailedState) => void): Unsub => on("failures:changed", (p) => cb(p as FailedState))
   },
   jobs: {
     list: () => ipcRenderer.invoke("jobs:list"),

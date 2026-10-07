@@ -6,6 +6,7 @@ import "./styles/experience.css";
 import "./styles/notifications.css";
 import "./styles/about.css";
 import "./styles/settings.css";
+import "./styles/failed.css";
 
 applyCachedAppearance();
 
