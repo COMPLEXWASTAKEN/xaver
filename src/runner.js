@@ -178,6 +178,7 @@ export async function runCollectJob(options, hooks = {}) {
     }
     const hidden = new Set();
     const seen = new Set();
+    let withheld = 0;
     const maxScrolls = Math.max(50, Number(options.maxScrolls) || 800);
     const itemsRaw = await collectMediaFromProfile(page, profilePath, {
       maxScrolls,
@@ -186,6 +187,10 @@ export async function runCollectJob(options, hooks = {}) {
       sources: Array.isArray(options.sources) ? options.sources : [],
       signal,
       onLog,
+      onWithheld: (item, count) => {
+        withheld = count;
+        if (item && hooks.onDrop) hooks.onDrop(item);
+      },
       onProgress: (p) => {
         const shown =
           typeof p.mediaCount === "number" ? Math.max(0, p.mediaCount - hidden.size) : p.mediaCount;
@@ -226,9 +231,10 @@ export async function runCollectJob(options, hooks = {}) {
         ? `Found ${items.length} media (${hiddenCount} already downloaded, hidden)`
         : `Found ${items.length} media`
     );
+    if (withheld) onLog(`Skipped ${withheld} that X removed (copyright or withheld)`);
     await closeBrowser();
 
-    return { profilePath, screenName, items, hiddenCount };
+    return { profilePath, screenName, items, hiddenCount, withheldCount: withheld };
   } catch (e) {
     await closeBrowser();
     if (signal?.aborted || e?.name === "AbortError") throw e;

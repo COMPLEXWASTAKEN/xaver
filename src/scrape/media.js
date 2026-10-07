@@ -257,12 +257,87 @@ function harvestVideoStrings(root, out) {
   }
 }
 
-export function walkMediaFromJson(root, out) {
-  walkMediaNodes(root, out, 0);
-  harvestVideoStrings(root, out);
+const UNAVAILABLE_REASON = /copyright|dmca|withheld|legal|removed|suspend/i;
+
+function availabilityOf(node) {
+  if (!node || typeof node !== "object") return null;
+  const result = node.media_results?.result || node;
+  const list = [
+    node.ext_media_availability,
+    node.media_availability,
+    node.media_availability_v2,
+    result.ext_media_availability,
+    result.media_availability,
+    result.media_availability_v2,
+    result.mediaAvailability,
+    result.media_info?.media_availability
+  ];
+  for (const a of list) {
+    if (!a || typeof a !== "object") continue;
+    const status = String(a.status || "");
+    const reason = String(a.reason || "");
+    if (/^unavailable$/i.test(status) || UNAVAILABLE_REASON.test(reason)) return reason || status;
+  }
+  return null;
 }
 
-function walkMediaNodes(root, out, depth) {
+export function isPlaceholderThumb(url) {
+  return /\/(dmca|copyright|withheld|unavailable)[^/]*\.(jpe?g|png|webp)|\/static\/(dmca|media_unavailable)/i.test(String(url || ""));
+}
+
+export function blockKeysFor(node) {
+  const keys = new Set();
+  const result = node?.media_results?.result || node;
+  for (const v of [...variantsFrom(node), ...variantsFrom(result)]) {
+    if (typeof v?.url === "string") keys.add(`v:${videoGroupKey(v.url)}`);
+  }
+  for (const u of [node?.media_url_https, node?.media_url, result?.media_url_https, result?.media_info?.original_img_url]) {
+    if (typeof u !== "string" || !u) continue;
+    keys.add(`v:${videoGroupKey(u)}`);
+    const id = (() => {
+      try {
+        return imageMediaId(new URL(u).pathname);
+      } catch {
+        return "";
+      }
+    })();
+    if (id) keys.add(`i:${id}`);
+  }
+  for (const id of [node?.id_str, node?.media_key, result?.id_str, result?.media_key, result?.rest_id]) {
+    if (id) keys.add(`m:${String(id).replace(/^\d+_/, "")}`);
+  }
+  return keys;
+}
+
+export function itemBlockKeys(item) {
+  const keys = [];
+  for (const u of [item?.url, item?.thumb]) {
+    if (!u) continue;
+    keys.push(`v:${videoGroupKey(u)}`);
+    try {
+      const id = imageMediaId(new URL(u).pathname);
+      if (id) keys.push(`i:${id}`);
+    } catch {}
+  }
+  return keys;
+}
+
+export function walkMediaFromJson(root, out, blocked = new Set()) {
+  const batch = [];
+  walkMediaNodes(root, batch, 0, blocked);
+  harvestVideoStrings(root, batch);
+  for (const it of batch) {
+    if (isPlaceholderThumb(it.thumb)) for (const k of itemBlockKeys({ url: it.url })) blocked.add(k);
+  }
+  for (const it of batch) {
+    if (isPlaceholderThumb(it.thumb)) continue;
+    if (blocked.size && itemBlockKeys(it).some((k) => blocked.has(k))) continue;
+    out.push(it);
+  }
+  return blocked;
+}
+
+function walkMediaNodes(root, out, depth, blocked) {
   const seen = new WeakSet();
   const stack = [root];
   while (stack.length) {
@@ -275,10 +350,12 @@ function walkMediaNodes(root, out, depth) {
       continue;
     }
 
-    if (
+    const isEntity =
       typeof node.type === "string" &&
-      (node.type === "photo" || node.type === "video" || node.type === "animated_gif")
-    ) {
+      (node.type === "photo" || node.type === "video" || node.type === "animated_gif");
+    if ((isEntity || isVideoNode(node) || node.media_results?.result) && availabilityOf(node)) {
+      for (const k of blockKeysFor(node)) blocked.add(k);
+    } else if (isEntity) {
       ingestEntity(node, out);
     } else if (isVideoNode(node) || node.media_results?.result) {
       ingestVideo(node.media_results?.result || node, out);
@@ -288,14 +365,17 @@ function walkMediaNodes(root, out, depth) {
     if (legacy && typeof legacy === "object") {
       const media = legacy.extended_entities?.media || legacy.entities?.media || null;
       if (Array.isArray(media)) {
-        for (let j = 0; j < media.length; j++) ingestEntity(media[j], out);
+        for (let j = 0; j < media.length; j++) {
+          if (availabilityOf(media[j])) for (const k of blockKeysFor(media[j])) blocked.add(k);
+          else ingestEntity(media[j], out);
+        }
       }
     }
 
     if (depth < 3) {
-      if (Array.isArray(node.binding_values)) ingestCardBindings(node.binding_values, out, depth);
+      if (Array.isArray(node.binding_values)) ingestCardBindings(node.binding_values, out, depth, blocked);
       else if (node.legacy && Array.isArray(node.legacy.binding_values)) {
-        ingestCardBindings(node.legacy.binding_values, out, depth);
+        ingestCardBindings(node.legacy.binding_values, out, depth, blocked);
       }
     }
 
@@ -303,7 +383,7 @@ function walkMediaNodes(root, out, depth) {
   }
 }
 
-function ingestCardBindings(bindings, out, depth) {
+function ingestCardBindings(bindings, out, depth, blocked) {
   const map = {};
   for (const b of bindings) {
     const key = b?.key;
@@ -328,7 +408,7 @@ function ingestCardBindings(bindings, out, depth) {
   const unified = map.unified_card;
   if (typeof unified === "string" && unified.length > 20 && depth < 3) {
     try {
-      walkMediaNodes(JSON.parse(unified), out, depth + 1);
+      walkMediaNodes(JSON.parse(unified), out, depth + 1, blocked);
     } catch {}
   }
 }
@@ -384,9 +464,7 @@ export function collapseMediaItems(items) {
 
 function ingestEntity(m, out) {
   if (!m || typeof m !== "object") return;
-  const status = m.ext_media_availability?.status || m.media_availability?.status || "";
-  const variants = variantsFrom(m);
-  if (String(status) === "Unavailable" && !variants.length) return;
+  if (availabilityOf(m)) return;
 
   if (ingestVideo(m, out)) return;
 

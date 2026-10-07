@@ -359,6 +359,14 @@ async function runCollect(job: JobRecord): Promise<void> {
           indexLive(item, liveItems.length - 1);
           job.mediaCount = liveItems.length;
           emit("jobs:item", { jobId: job.id, generation: gen, item });
+        },
+        onDrop: (item: MediaItem) => {
+          if (gen !== scanGeneration) return;
+          const idx = findLive(item);
+          if (idx < 0) return;
+          resetLive(liveItems.filter((_, i) => i !== idx));
+          job.mediaCount = liveItems.length;
+          emit("jobs:items", { jobId: job.id, generation: gen, items: liveItems });
         }
       }
     );
@@ -378,12 +386,14 @@ async function runCollect(job: JobRecord): Promise<void> {
     settle(true);
     const found = result.items.length;
     const hidden = job.hidden || 0;
+    const removed = Number(result.withheldCount) || 0;
+    const removedNote = removed ? ` · ${removed} removed by X skipped` : "";
     notify({
       kind: "scan",
       tone: found ? "ok" : "info",
       title: found ? "Scan finished" : "Nothing new found",
       body: found
-        ? `${plural(found, "new item")} ready to review${hidden ? ` · ${hidden} already saved` : ""}`
+        ? `${plural(found, "new item")} ready to review${hidden ? ` · ${hidden} already saved` : ""}${removedNote}`
         : hidden
           ? `Everything here is already saved (${hidden}).`
           : "The scan didn't find any media.",

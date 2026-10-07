@@ -1,4 +1,4 @@
-import { walkMediaFromJson, upgradeImageUrl, mediaIdentity, preferMedia } from "./media.js";
+import { walkMediaFromJson, upgradeImageUrl, mediaIdentity, preferMedia, itemBlockKeys, isPlaceholderThumb } from "./media.js";
 
 function dedupeKey(item) {
   return mediaIdentity(item);
@@ -299,13 +299,13 @@ export async function readLoggedInScreenName(page, opts = {}) {
   return null;
 }
 
-async function drainGraphqlBuffer(page, addItems) {
+async function drainGraphqlBuffer(page, addItems, blocked) {
   const bodies = await page.evaluate(pageFn(PAGE_DRAIN_GQL));
   for (const body of bodies) {
     try {
       const json = JSON.parse(body);
       const batch = [];
-      walkMediaFromJson(json, batch);
+      walkMediaFromJson(json, batch, blocked);
       addItems(batch);
     } catch {}
   }
@@ -392,11 +392,32 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
 
   const seen = new Map();
   const tweetIds = new Set();
+  const blocked = new Set();
+  const withheld = new Set();
+  const onWithheld = typeof options.onWithheld === "function" ? options.onWithheld : null;
+  const isBlocked = (it) => isPlaceholderThumb(it.thumb) || (blocked.size > 0 && itemBlockKeys(it).some((k) => blocked.has(k)));
+  const dropBlocked = () => {
+    if (!blocked.size) return;
+    for (const [key, it] of seen) {
+      if (!isBlocked(it)) continue;
+      seen.delete(key);
+      withheld.add(key);
+      if (onWithheld) onWithheld(it, withheld.size);
+    }
+  };
   const addItems = (items) => {
+    dropBlocked();
     for (const it of items) {
       if (!it?.url || !/^https?:/i.test(it.url)) continue;
       if (/profile_images|profile_banners/i.test(it.url)) continue;
       const key = dedupeKey(it);
+      if (isBlocked(it)) {
+        if (!withheld.has(key)) {
+          withheld.add(key);
+          if (onWithheld) onWithheld(null, withheld.size);
+        }
+        continue;
+      }
       const tagged = { ...it, id: it.id || key };
       const prev = seen.get(key);
       if (!prev) {
@@ -435,7 +456,7 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
       try {
         const json = JSON.parse(text);
         const batch = [];
-        walkMediaFromJson(json, batch);
+        walkMediaFromJson(json, batch, blocked);
         addItems(batch);
       } catch {}
     } catch {}
@@ -493,7 +514,7 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
 
       while (scrolls < maxScrolls && idle < maxIdleRounds) {
         throwIfAborted();
-        await drainGraphqlBuffer(page, addItems);
+        await drainGraphqlBuffer(page, addItems, blocked);
         await scrapeVisible(page, addItems, tweetIds);
         await dismissNoise(page);
 
@@ -526,7 +547,7 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
         await sleep(pauseMs, signal);
         scrolls++;
 
-        await drainGraphqlBuffer(page, addItems);
+        await drainGraphqlBuffer(page, addItems, blocked);
 
         const bottom = await page.evaluate(pageFn(PAGE_AT_BOTTOM));
 
@@ -537,7 +558,7 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
       }
 
       totalScrolls += scrolls;
-      await drainGraphqlBuffer(page, addItems);
+      await drainGraphqlBuffer(page, addItems, blocked);
       await scrapeVisible(page, addItems, tweetIds);
     }
 
