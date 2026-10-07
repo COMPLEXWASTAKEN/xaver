@@ -327,13 +327,18 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
   const dedupe = options.dedupe !== false;
   const list = collapseMediaItems(items);
 
+  const split = options.split !== false;
+  const shared = options.shared === true;
+  const prefix = options.prefix ? `${sanitizeName(options.prefix, 40)}_` : "";
   fs.mkdirSync(outDir, { recursive: true });
-  const photosDir = path.join(outDir, "photos");
-  const videosDir = path.join(outDir, "videos");
-  const gifsDir = path.join(outDir, "gifs");
-  fs.mkdirSync(photosDir, { recursive: true });
-  fs.mkdirSync(videosDir, { recursive: true });
-  fs.mkdirSync(gifsDir, { recursive: true });
+  const photosDir = split ? path.join(outDir, "photos") : outDir;
+  const videosDir = split ? path.join(outDir, "videos") : outDir;
+  const gifsDir = split ? path.join(outDir, "gifs") : outDir;
+  if (split) {
+    fs.mkdirSync(photosDir, { recursive: true });
+    fs.mkdirSync(videosDir, { recursive: true });
+    fs.mkdirSync(gifsDir, { recursive: true });
+  }
 
   const saved = [];
   const skipped = [];
@@ -402,11 +407,17 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
           base = `${stem}_${short}${e}`;
         }
 
+        if (shared) base = base.replace(/^(photo|gif|video)_\d{4,}_/, "$1_");
+        base = prefix + base;
+
         let name = base;
-        while (usedNames.has(name) || fs.existsSync(path.join(folder, name))) {
-          name = name.replace(/(\.\w+)?$/, `_d${usedNames.size}$1`);
+        const dot = base.lastIndexOf(".");
+        const stem = dot > 0 ? base.slice(0, dot) : base;
+        const tail = dot > 0 ? base.slice(dot) : "";
+        for (let n = 2; usedNames.has(folder + name) || fs.existsSync(path.join(folder, name)); n++) {
+          name = `${stem}_${n}${tail}`;
         }
-        usedNames.add(name);
+        usedNames.add(folder + name);
         const dest = path.join(folder, name);
         const tmpDest = `${dest}.part`;
         fs.writeFileSync(tmpDest, body);
@@ -453,17 +464,20 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
       db?.flushNow();
     } catch {}
     try {
-      fs.writeFileSync(
-        path.join(outDir, "hashes.json"),
-        JSON.stringify(
-          {
-            saved: saved.map((s) => ({ sha256: s.sha256, file: s.rel, bytes: s.bytes })),
-            skipped
-          },
-          null,
-          2
-        )
-      );
+      const file = path.join(outDir, "hashes.json");
+      const fresh = saved.map((s) => ({ sha256: s.sha256, file: s.rel, bytes: s.bytes }));
+      let earlier = [];
+      if (shared) {
+        try {
+          const prev = JSON.parse(fs.readFileSync(file, "utf8"));
+          if (Array.isArray(prev?.saved)) earlier = prev.saved;
+        } catch {}
+      }
+      const mine = new Set(fresh.map((s) => s.file));
+      const merged = [...earlier.filter((s) => s && !mine.has(s.file)), ...fresh];
+      const tmp = `${file}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ saved: merged, skipped }, null, 2));
+      fs.renameSync(tmp, file);
     } catch {}
   }
 
@@ -482,6 +496,24 @@ export async function zipFolderToFile(folderPath, zipPath) {
   });
   archive.pipe(output);
   archive.directory(folderPath, false);
+  await archive.finalize();
+  await done;
+  return zipPath;
+}
+
+export async function zipFilesToFile(files, baseDir, zipPath) {
+  await fs.promises.mkdir(path.dirname(zipPath), { recursive: true });
+  const output = fs.createWriteStream(zipPath);
+  const archive = archiver("zip", { zlib: { level: 0 }, store: true });
+  const done = new Promise((resolve, reject) => {
+    output.on("close", resolve);
+    archive.on("error", reject);
+    output.on("error", reject);
+  });
+  archive.pipe(output);
+  for (const file of files) {
+    archive.file(file, { name: path.relative(baseDir, file).replace(/\\/g, "/") });
+  }
   await archive.finalize();
   await done;
   return zipPath;

@@ -24,23 +24,61 @@ export type LibraryFile = {
   rel: string;
 };
 
-function countMedia(dir: string): { photos: number; videos: number; gifs: number } {
-  const photosDir = path.join(dir, "photos");
-  const videosDir = path.join(dir, "videos");
-  const gifsDir = path.join(dir, "gifs");
-  const count = (d: string, re: RegExp) => {
-    if (!fs.existsSync(d)) return 0;
-    try {
-      return fs.readdirSync(d).filter((f) => re.test(f)).length;
-    } catch {
-      return 0;
+type Kind = "image" | "video" | "gif";
+
+const SUBDIRS: [string, Kind][] = [
+  ["photos", "image"],
+  ["videos", "video"],
+  ["gifs", "gif"]
+];
+
+const MEDIA_RE = /\.(jpe?g|png|webp|gif|mp4|mov|webm|m4v)$/i;
+
+function kindOf(name: string, fallback: Kind | null): Kind | null {
+  if (!MEDIA_RE.test(name)) return null;
+  if (fallback) return fallback;
+  if (/\.gif$/i.test(name) || /(^|_)gif_/i.test(name)) return "gif";
+  return /\.(jpe?g|png|webp)$/i.test(name) ? "image" : "video";
+}
+
+function readNames(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+function eachMedia(dir: string, visit: (subdir: string, name: string, kind: Kind) => void): void {
+  for (const [subdir, kind] of SUBDIRS) {
+    for (const name of readNames(path.join(dir, subdir))) {
+      if (kindOf(name, kind)) visit(subdir, name, kind);
     }
-  };
-  return {
-    photos: count(photosDir, /\.(jpe?g|png|webp)$/i),
-    videos: count(videosDir, /\.(mp4|mov|webm|m4v)$/i),
-    gifs: count(gifsDir, /\.(gif|mp4|webm)$/i)
-  };
+  }
+  for (const name of readNames(dir)) {
+    const kind = kindOf(name, null);
+    if (kind) visit("", name, kind);
+  }
+}
+
+function countMedia(dir: string): { photos: number; videos: number; gifs: number } {
+  const counts = { photos: 0, videos: 0, gifs: 0 };
+  eachMedia(dir, (_s, _n, kind) => {
+    if (kind === "image") counts.photos++;
+    else if (kind === "gif") counts.gifs++;
+    else counts.videos++;
+  });
+  return counts;
+}
+
+function latestChange(dir: string): number {
+  let latest = 0;
+  for (const d of [dir, ...SUBDIRS.map(([s]) => path.join(dir, s))]) {
+    try {
+      latest = Math.max(latest, fs.statSync(d).mtimeMs);
+    } catch {}
+  }
+  return latest;
 }
 
 export function listRuns(): LibraryRun[] {
@@ -57,12 +95,8 @@ export function listRuns(): LibraryRun[] {
     if (!ent.isDirectory()) continue;
     if (ent.name.startsWith(".")) continue;
     const full = path.join(root, ent.name);
-    let mtime = 0;
-    try {
-      mtime = fs.statSync(full).mtimeMs;
-    } catch {
-      continue;
-    }
+    const mtime = latestChange(full);
+    if (!mtime) continue;
     const counts = countMedia(full);
     runs.push({
       id: ent.name,
@@ -116,42 +150,21 @@ export function listRunFiles(runId: string): LibraryFile[] {
   if (!run) return [];
   const out: LibraryFile[] = [];
   const seenContent = new Set<string>();
-  const walk = (subdir: string, kind: "image" | "video" | "gif") => {
-    const dir = path.join(run.path, subdir);
-    if (!fs.existsSync(dir)) return;
-    let files: string[];
+  eachMedia(run.path, (subdir, name, kind) => {
+    const full = path.join(run.path, subdir, name);
+    let st: fs.Stats;
     try {
-      files = fs.readdirSync(dir);
+      st = fs.statSync(full);
     } catch {
       return;
     }
-    for (const name of files) {
-      const full = path.join(dir, name);
-      let st: fs.Stats;
-      try {
-        st = fs.statSync(full);
-      } catch {
-        continue;
-      }
-      if (!st.isFile() || st.size === 0) continue;
-      if (!/\.(jpe?g|png|webp|gif|mp4|mov|webm|m4v)$/i.test(name)) continue;
-      const fp = fileFingerprint(full, st.size);
-      if (seenContent.has(fp)) continue;
-      seenContent.add(fp);
-      out.push({
-        id: `${run.id}/${subdir}/${name}`,
-        name,
-        path: full,
-        kind,
-        bytes: st.size,
-        runId: run.id,
-        rel: path.join(subdir, name).replace(/\\/g, "/")
-      });
-    }
-  };
-  walk("photos", "image");
-  walk("videos", "video");
-  walk("gifs", "gif");
+    if (!st.isFile() || st.size === 0) return;
+    const fp = fileFingerprint(full, st.size);
+    if (seenContent.has(fp)) return;
+    seenContent.add(fp);
+    const rel = (subdir ? `${subdir}/${name}` : name).replace(/\\/g, "/");
+    out.push({ id: `${run.id}/${rel}`, name, path: full, kind, bytes: st.size, runId: run.id, rel });
+  });
   return out;
 }
 

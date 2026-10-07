@@ -4,9 +4,13 @@ export type ThemeDensity = "compact" | "comfortable";
 export type ThemeName = "charcoal" | "midnight" | "slate" | "light" | "system";
 export type MotionLevel = "system" | "full" | "reduced" | "off";
 export type CornerStyle = "sharp" | "rounded" | "round";
+export type FolderLayout = "run" | "profile" | "single";
 
 export type AppConfig = {
   outputRoot: string;
+  folderLayout: FolderLayout;
+  singleFolderName: string;
+  splitByType: boolean;
   defaultZip: boolean;
   openFolderOnComplete: boolean;
   notifyDesktop: boolean;
@@ -63,6 +67,9 @@ export type AppConfig = {
 
 export const DEFAULT_CONFIG: AppConfig = {
   outputRoot: "",
+  folderLayout: "run",
+  singleFolderName: "All media",
+  splitByType: true,
   defaultZip: true,
   openFolderOnComplete: true,
   notifyDesktop: true,

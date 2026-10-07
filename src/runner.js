@@ -14,6 +14,7 @@ import {
   createHttpContext,
   downloadAll,
   zipFolderToFile,
+  zipFilesToFile,
   defaultStamp,
   labelFromPath,
   createKnownMediaCheck
@@ -255,7 +256,11 @@ export async function runDownloadJob(options, hooks = {}) {
   fs.mkdirSync(outRoot, { recursive: true });
   const stamp = defaultStamp();
   const label = sanitizeLabel(options.label || options.profilePath || "media");
-  const runDir = path.join(outRoot, `${label}_${stamp}`);
+  const layout = options.folderLayout === "profile" || options.folderLayout === "single" ? options.folderLayout : "run";
+  const runDir =
+    layout === "single"
+      ? path.join(outRoot, folderName(options.singleFolderName))
+      : path.join(outRoot, layout === "profile" ? label : `${label}_${stamp}`);
 
   const dedupe = options.sha256Dedupe !== false;
   let db = null;
@@ -309,6 +314,9 @@ export async function runDownloadJob(options, hooks = {}) {
       dedupe,
       runId,
       profile,
+      shared: layout !== "run",
+      split: options.splitByType !== false,
+      prefix: layout === "single" ? label : "",
       signal,
       concurrency: options.concurrency,
       retries: options.retries ?? 2,
@@ -333,7 +341,8 @@ export async function runDownloadJob(options, hooks = {}) {
       throwIfAborted(signal);
       zipPath = path.join(outRoot, `${label}_${stamp}.zip`);
       onProgress({ phase: "zipping", message: "Building ZIP…" });
-      await zipFolderToFile(runDir, zipPath);
+      if (layout === "run") await zipFolderToFile(runDir, zipPath);
+      else await zipFilesToFile(saved.map((f) => f.path), runDir, zipPath);
     }
 
     onLog(`Saved ${saved.length}`);
@@ -355,6 +364,16 @@ export async function runDownloadJob(options, hooks = {}) {
       db?.flushNow();
     } catch {}
   }
+}
+
+function folderName(raw) {
+  const name = String(raw || "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .slice(0, 60)
+    .trim();
+  return !name || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(name) ? "All media" : name;
 }
 
 function sanitizeLabel(raw) {

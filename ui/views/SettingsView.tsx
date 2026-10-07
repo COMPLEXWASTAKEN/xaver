@@ -3,6 +3,7 @@ import { Row, Toggle } from "../components/common/controls";
 import { AppearancePicker } from "../components/setup/AppearancePicker";
 import { SecurityPanel } from "../components/security/SecurityPanel";
 import { NotificationSettings } from "../components/settings/NotificationSettings";
+import { FolderLayoutPicker } from "../components/settings/FolderLayoutPicker";
 import type { Appearance, SecurityStatus } from "../../electron/shared/types";
 import type { AppConfig } from "../../electron/shared/types";
 import { DEFAULT_CONFIG } from "../../electron/shared/types";
@@ -39,7 +40,7 @@ const CATS: { id: SettingsCat; label: string; keys: (keyof AppConfig)[] }[] = [
   {
     id: "general",
     label: "General",
-    keys: ["outputRoot", "defaultZip", "openFolderOnComplete", "themeDensity"]
+    keys: ["outputRoot", "folderLayout", "singleFolderName", "splitByType", "defaultZip", "openFolderOnComplete", "themeDensity"]
   },
   {
     id: "scrape",
@@ -178,7 +179,7 @@ export function SettingsView({
         {cat === "general" && (
           <>
             {visible("Output folder", "Where runs are written") && (
-              <Row title="Output folder" hint="Absolute path for downloaded media runs.">
+              <Row title="Output folder" hint="Everything Xaver saves goes in here.">
                 <div className="row">
                   <input
                     className="field"
@@ -198,8 +199,9 @@ export function SettingsView({
                 </div>
               </Row>
             )}
+            <FolderLayoutPicker config={config} set={set} visible={visible} />
             {visible("ZIP on complete") && (
-              <Row title="ZIP on complete" hint="Build one ZIP beside the run folder.">
+              <Row title="ZIP on complete" hint="Also build a ZIP of each download's new files.">
                 <Toggle on={config.defaultZip} onChange={(v) => void set("defaultZip", v)} />
               </Row>
             )}

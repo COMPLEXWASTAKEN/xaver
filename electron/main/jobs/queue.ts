@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { BrowserWindow, shell } from "electron";
 import { getAuthStatus, getSessionCookies, getShardxCacheDir } from "../auth/session";
-import { loadConfig, loadHistory, resolvedOutputRoot, safeLaunchArgs, saveHistory } from "../storage/config";
+import { loadConfig, loadHistory, resolvedOutputRoot, safeFolderName, safeLaunchArgs, saveHistory } from "../storage/config";
 import type { JobProgress, JobRecord, MediaItem } from "../../shared/types";
 import { loadEngineModule } from "../engine/loader";
 import { mediaDbPath } from "../storage/media-db";
@@ -173,6 +173,9 @@ function engineOpts(cfg: ReturnType<typeof loadConfig>, signal?: AbortSignal) {
     requestTimeoutMs: cfg.requestTimeoutMs,
     wantZip: cfg.defaultZip,
     outRoot: resolvedOutputRoot(cfg),
+    folderLayout: cfg.folderLayout,
+    singleFolderName: safeFolderName(cfg.singleFolderName),
+    splitByType: cfg.splitByType,
     dbPath: mediaDbPath(),
     dbKey: databaseKey(),
     signal

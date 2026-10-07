@@ -95,7 +95,19 @@ function sanitize(patch: Partial<AppConfig>): Partial<AppConfig> {
   if (typeof out.proxyUrl === "string" && out.proxyUrl.trim() && !/^(https?|socks[45]?):\/\//i.test(out.proxyUrl.trim())) {
     delete out.proxyUrl;
   }
+  if ("folderLayout" in out && !["run", "profile", "single"].includes(out.folderLayout as string)) delete out.folderLayout;
+  if (typeof out.singleFolderName === "string") out.singleFolderName = safeFolderName(out.singleFolderName);
   return out as Partial<AppConfig>;
+}
+
+export function safeFolderName(raw: unknown): string {
+  const name = String(raw || "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .slice(0, 60)
+    .trim();
+  return !name || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(name) ? DEFAULT_CONFIG.singleFolderName : name;
 }
 
 export function saveConfig(patch: Partial<AppConfig>): AppConfig {
