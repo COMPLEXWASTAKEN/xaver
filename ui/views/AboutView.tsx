@@ -207,7 +207,7 @@ export function AboutView({
   ];
 
   const copyDetails = () => {
-    const text = [...details.map(([k, v]) => `${k}: ${v}`), `Installed in: ${info.installDir}`].join("\n");
+    const text = details.map(([k, v]) => `${k}: ${v}`).join("\n");
     void navigator.clipboard
       .writeText(text)
       .then(() => toast({ tone: "ok", title: "Copied", body: "Version details are on your clipboard.", ttl: 2500 }))

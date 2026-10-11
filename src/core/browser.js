@@ -129,10 +129,6 @@ export async function openShardxContext(options) {
   };
 }
 
-export async function openCloakContext(options) {
-  return openShardxContext(options);
-}
-
 export function defaultCliProfileDir(rootDir) {
   return path.join(rootDir, ".shardx");
 }
@@ -147,10 +143,6 @@ export async function ensureShardxReady(cacheDir, onLog = () => {}) {
     cacheDir: dir,
     profiles: sdk.listSavedProfiles()
   };
-}
-
-export async function ensureCloakBinary(onLog = () => {}) {
-  return ensureShardxReady(undefined, onLog);
 }
 
 export function clearShardxProfile(cacheDir) {

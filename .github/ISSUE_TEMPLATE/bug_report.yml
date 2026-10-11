@@ -1,0 +1,39 @@
+name: Bug report
+description: Something in Xaver isn't working right
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If you can fix it yourself, a pull request is the fastest way to get it sorted.
+        Never paste cookies, tokens or your session file here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Scan
+        2. Scan @someprofile with Media only
+        3. Download all
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Version details
+      description: In Xaver, open About and press Copy next to Details, then paste here.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: Anything else that helps. Crop out usernames and paths you don't want public.

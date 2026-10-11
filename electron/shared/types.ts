@@ -49,15 +49,11 @@ export type AppConfig = {
   retryFailedPass: boolean;
   rememberDownloads: boolean;
   hideDownloaded: boolean;
-  filenamePattern: string;
-  cookiePathOverride: string;
   autoCheckAuthOnLaunch: boolean;
   playwrightArgs: string;
   proxyUrl: string;
   requestTimeoutMs: number;
   retryCount: number;
-  logLevel: "silent" | "info" | "debug";
-  chromiumChannel: string;
   
   shardxCacheDir: string;
   shardxTemplate: string;
@@ -109,15 +105,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   retryFailedPass: true,
   rememberDownloads: true,
   hideDownloaded: true,
-  filenamePattern: "{kind}_{hash16}",
-  cookiePathOverride: "",
   autoCheckAuthOnLaunch: true,
   playwrightArgs: "",
   proxyUrl: "",
   requestTimeoutMs: 120000,
   retryCount: 2,
-  logLevel: "info",
-  chromiumChannel: "",
   shardxCacheDir: "",
   shardxTemplate: "win-rtx4060",
   shardxProfileId: "",

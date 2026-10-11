@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/COMPLEXWASTAKEN/xaver/security/advisories/new
+    about: Please report security holes privately, not in a public issue.
+  - name: Download the latest version
+    url: https://github.com/COMPLEXWASTAKEN/xaver/releases/latest
+    about: Make sure you're on the newest release before reporting a bug.

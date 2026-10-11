@@ -66,14 +66,13 @@ const CATS: { id: SettingsCat; label: string; keys: (keyof AppConfig)[] }[] = [
       "sha256Dedupe",
       "rememberDownloads",
       "retryFailedPass",
-      "hideDownloaded",
-      "filenamePattern"
+      "hideDownloaded"
     ]
   },
   {
     id: "auth",
     label: "Auth",
-    keys: ["cookiePathOverride", "autoCheckAuthOnLaunch"]
+    keys: ["autoCheckAuthOnLaunch"]
   },
   {
     id: "stealth",
@@ -92,7 +91,7 @@ const CATS: { id: SettingsCat; label: string; keys: (keyof AppConfig)[] }[] = [
   {
     id: "advanced",
     label: "Advanced",
-    keys: ["playwrightArgs", "requestTimeoutMs", "retryCount", "logLevel", "chromiumChannel"]
+    keys: ["playwrightArgs", "requestTimeoutMs", "retryCount"]
   }
 ];
 
@@ -328,7 +327,7 @@ export function SettingsView({
               </Row>
             )}
             {visible("Skip HLS") && (
-              <Row title="Skip HLS (.m3u8)" hint="Desktop v1 skips HLS playlists; prefer mp4 variants.">
+              <Row title="Skip HLS (.m3u8)" hint="Skip streaming playlists and save the MP4 version instead. Almost every X video has one.">
                 <Toggle on={config.skipHls} onChange={(v) => void set("skipHls", v)} />
               </Row>
             )}
@@ -365,31 +364,13 @@ export function SettingsView({
                 <Toggle on={config.hideDownloaded} onChange={(v) => void set("hideDownloaded", v)} />
               </Row>
             )}
-            {visible("Filename pattern") && (
-              <Row title="Filename pattern" hint="Not used yet. Files are named by content hash for now.">
-                <input
-                  className="field"
-                  value={config.filenamePattern}
-                  onChange={(e) => void set("filenamePattern", e.target.value)}
-                />
-              </Row>
-            )}
           </>
         )}
 
         {cat === "auth" && (
           <>
-            {visible("Cookie path override") && (
-              <Row title="Cookie path override" hint="Optional default file for CLI / future import.">
-                <input
-                  className="field"
-                  value={config.cookiePathOverride}
-                  onChange={(e) => void set("cookiePathOverride", e.target.value)}
-                />
-              </Row>
-            )}
             {visible("Auto-check auth on launch") && (
-              <Row title="Auto-check auth on launch" hint="Refresh @handle when session exists.">
+              <Row title="Auto-check auth on launch" hint="Check your X session when Xaver starts, so you know right away if you need to sign in again.">
                 <Toggle
                   on={config.autoCheckAuthOnLaunch}
                   onChange={(v) => void set("autoCheckAuthOnLaunch", v)}
@@ -523,28 +504,6 @@ export function SettingsView({
                   max={6}
                   value={config.retryCount}
                   onChange={(e) => void set("retryCount", Math.max(0, Math.min(6, Number(e.target.value) || 0)))}
-                />
-              </Row>
-            )}
-            {visible("Log level") && (
-              <Row title="Log level">
-                <select
-                  className="field"
-                  value={config.logLevel}
-                  onChange={(e) => void set("logLevel", e.target.value as AppConfig["logLevel"])}
-                >
-                  <option value="silent">Silent</option>
-                  <option value="info">Info</option>
-                  <option value="debug">Debug</option>
-                </select>
-              </Row>
-            )}
-            {visible("Chromium channel") && (
-              <Row title="Chromium channel" hint="Not used. ShardX ships its own Chromium 152.">
-                <input
-                  className="field"
-                  value={config.chromiumChannel}
-                  onChange={(e) => void set("chromiumChannel", e.target.value)}
                 />
               </Row>
             )}
