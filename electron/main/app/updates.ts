@@ -80,7 +80,10 @@ export function appInfo(): AppInfo {
     installDir: path.dirname(process.execPath),
     dataDir: app.getPath("userData"),
     releasesUrl: RELEASES_URL,
-    issuesUrl: ISSUES_URL
+    issuesUrl: ISSUES_URL,
+    bugUrl: `${ISSUES_URL}/new?template=bug_report.yml`,
+    requestUrl: `${ISSUES_URL}/new?template=feature_request.yml`,
+    boardUrl: `${ISSUES_URL}?q=is%3Aissue+is%3Aopen+label%3Afeature-board`
   };
 }
 

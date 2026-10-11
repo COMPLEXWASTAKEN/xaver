@@ -366,6 +366,9 @@ export type AppInfo = {
   dataDir: string;
   releasesUrl: string;
   issuesUrl: string;
+  bugUrl: string;
+  requestUrl: string;
+  boardUrl: string;
 };
 
 export type UpdateRelease = {

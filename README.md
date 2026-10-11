@@ -49,9 +49,20 @@ Point it at a profile (yours or anyone's) and it scrolls through media, posts, r
 | ![Lock screen](docs/screenshots/lock.png) | ![Notifications](docs/screenshots/notifications.png) |
 | ![Security settings](docs/screenshots/settings-security.png) | ![Database](docs/screenshots/database.png) |
 
+## Request a feature
+
+Want something in Xaver? There's a simple system for it:
+
+1. **Check the [📋 Feature board](https://github.com/COMPLEXWASTAKEN/xaver/issues?q=is%3Aissue+is%3Aopen+label%3Afeature-board).** It lists every open request ranked by 👍 and updates itself. If your idea is there, add a 👍 to it. Votes decide what comes first.
+2. **Not there? [Request it](https://github.com/COMPLEXWASTAKEN/xaver/issues/new?template=feature_request.yml).** The form asks what's missing and how it could work. You can also do this from inside the app: **About → Request a feature**.
+3. **Want it sooner? Build it.** Requests marked **help wanted** are accepted and waiting for a pull request. Open one that says `Closes #<number>` and it's tagged on the board as in progress.
+4. **Just a rough idea?** Talk it through in [Discussions → Ideas](https://github.com/COMPLEXWASTAKEN/xaver/discussions/categories/ideas) first.
+
+Each request is labelled **needs-triage**, then **planned**, **help wanted** or **not planned**, and moves to **Recently shipped** on the board once it's released. Found a bug instead? [Report it here](https://github.com/COMPLEXWASTAKEN/xaver/issues/new?template=bug_report.yml).
+
 ## Contributing
 
-Want something added or fixed? **Open a pull request.** Pull requests are the way to get changes in. Ideas and bug reports are welcome as issues too, but a PR is the fastest route.
+Want something added or fixed? **Open a pull request.** Pull requests are the way to get changes in, and the fastest way to get a feature from the board.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) first. The short version:
 

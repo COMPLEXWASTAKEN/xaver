@@ -1,0 +1,145 @@
+name: Feature requests
+
+on:
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled]
+  pull_request_target:
+    types: [opened]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: feature-board
+  cancel-in-progress: false
+
+jobs:
+  welcome:
+    name: Welcome new request
+    if: github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'enhancement')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Comment
+        run: |
+          cat > body.md <<'EOF'
+          Thanks for the request! 🙌
+
+          - **Votes decide the order.** Anyone who wants this should add a 👍 to the first post. The [Feature board](https://github.com/${{ github.repository }}/issues?q=is%3Aissue+is%3Aopen+label%3Afeature-board) ranks every open request by 👍.
+          - **What happens next.** It'll be labelled `planned`, `help wanted` or `not planned`. `help wanted` means a pull request is very welcome.
+          - **Want it sooner? Build it.** Fork the repo, follow [CONTRIBUTING.md](https://github.com/${{ github.repository }}/blob/main/CONTRIBUTING.md), and open a pull request that says `Closes #${{ github.event.issue.number }}`. Pull requests are the fastest way to get a feature in.
+          EOF
+          gh issue comment "$NUMBER" --body-file body.md
+
+  link-pr:
+    name: Tag pull requests that build a request
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+    steps:
+      - name: Label linked requests
+        run: |
+          for n in $(printf '%s' "$PR_BODY" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+' | grep -oE '[0-9]+' | sort -u); do
+            labels=$(gh issue view "$n" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || true)
+            case ",$labels," in
+              *,enhancement,*)
+                gh issue edit "$n" --add-label "in progress" --remove-label "needs-triage" || true
+                gh pr edit "$PR" --add-label "feature" || true
+                gh issue comment "$n" --body "🛠️ Pull request #$PR is building this. Follow along there." || true
+                ;;
+            esac
+          done
+
+  board:
+    name: Update the Feature board
+    if: github.event_name != 'pull_request_target' && !(github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'feature-board'))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Build the board
+        run: |
+          set -euo pipefail
+          gh issue list --label enhancement --state open --limit 500 \
+            --json number,title,url,labels,reactionGroups,body,comments > open.json
+          gh issue list --label enhancement --state closed --limit 40 \
+            --json number,title,url,labels,stateReason,closedAt > closed.json
+
+          rows() {
+            jq -r --arg want "$1" '
+              def votes: ([.reactionGroups[]? | select(.content == "THUMBS_UP") | .users.totalCount] | add) // 0;
+              def area: ((.body // "") | capture("### Area\\s+(?<a>[^\\n]+)").a? // "—");
+              def has($l): any(.labels[]; .name == $l);
+              def status:
+                if has("in progress") then "in progress"
+                elif has("planned") then "planned"
+                elif has("help wanted") then "help wanted"
+                elif has("not planned") then "not planned"
+                else "new" end;
+              map(select(has("feature-board") | not))
+              | map(select(status == $want))
+              | sort_by(-votes, .number)
+              | .[]
+              | "| \(votes) | [#\(.number) \(.title | gsub("\\|"; "/") | gsub("^\\[Feature\\] *"; ""))](\(.url)) | \(area) | \(.comments | length) |"
+            ' open.json
+          }
+
+          section() {
+            local title="$1" want="$2" note="$3" out
+            out=$(rows "$want")
+            echo "## $title"
+            echo
+            echo "$note"
+            echo
+            if [ -z "$out" ]; then
+              echo "_Nothing here right now._"
+            else
+              echo "| 👍 | Request | Area | Comments |"
+              echo "|---:|---|---|---:|"
+              echo "$out"
+            fi
+            echo
+          }
+
+          {
+            echo "# 📋 Xaver Feature board"
+            echo
+            echo "Every open feature request, ranked by 👍. This page updates itself every few hours and whenever a request changes."
+            echo
+            echo "> **How to get a feature into Xaver**"
+            echo "> 1. **Vote** for requests you want by adding a 👍 to their first post. Votes set the order."
+            echo "> 2. **Request** something new with the [feature request form](https://github.com/$REPO/issues/new?template=feature_request.yml). Check this board first so votes don't get split."
+            echo "> 3. **Build it.** Pull requests are the fastest way in. Pick anything marked _help wanted_, read [CONTRIBUTING.md](https://github.com/$REPO/blob/main/CONTRIBUTING.md), and open a PR that says \`Closes #<number>\`."
+            echo
+            section "🛠️ In progress" "in progress" "Someone is building these right now."
+            section "🗺️ Planned" "planned" "Accepted and on the list."
+            section "🙋 Help wanted" "help wanted" "Accepted, and a pull request would be very welcome."
+            section "🆕 New requests" "new" "Waiting for votes and triage."
+            echo "## ✅ Recently shipped"
+            echo
+            shipped=$(jq -r 'map(select(.stateReason == "COMPLETED" and (any(.labels[]; .name == "feature-board") | not))) | sort_by(.closedAt) | reverse | .[:10] | .[] | "- [#\(.number) \(.title | gsub("^\\[Feature\\] *"; ""))](\(.url))"' closed.json)
+            if [ -z "$shipped" ]; then echo "_Nothing yet. Yours could be first._"; else echo "$shipped"; fi
+            echo
+            echo "---"
+            echo "<sub>Updated $(date -u '+%Y-%m-%d %H:%M UTC'). Requests marked _not planned_ are hidden.</sub>"
+          } > board.md
+
+          board=$(gh issue list --label feature-board --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -z "$board" ]; then
+            gh issue create --title "📋 Feature board: vote on what comes next" --label feature-board --body-file board.md
+          else
+            gh issue edit "$board" --body-file board.md
+          fi

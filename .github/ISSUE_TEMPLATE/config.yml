@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Feature board
+    url: https://github.com/COMPLEXWASTAKEN/xaver/issues?q=is%3Aissue+is%3Aopen+label%3Afeature-board
+    about: See every open request ranked by votes. Add a 👍 to the ones you want.
+  - name: Rough idea or question
+    url: https://github.com/COMPLEXWASTAKEN/xaver/discussions/categories/ideas
+    about: Not sure it's a feature yet? Talk it through in Discussions first.
   - name: Report a security problem
     url: https://github.com/COMPLEXWASTAKEN/xaver/security/advisories/new
     about: Please report security holes privately, not in a public issue.

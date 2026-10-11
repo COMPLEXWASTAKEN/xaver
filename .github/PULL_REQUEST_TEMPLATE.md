@@ -2,6 +2,8 @@
 
 <!-- A sentence or two: what does this PR do, and why? -->
 
+Closes #<!-- the feature request or bug this builds, if there is one -->
+
 ## How to try it
 
 <!-- Steps to see the change in the app. -->

@@ -265,11 +265,28 @@ export function AboutView({
         </Row>
       </div>
 
+      <div className="card about-card about-ideas">
+        <div className="about-ideas-text">
+          <strong>Want something added?</strong>
+          <span className="muted">
+            Request a feature and vote on others on the Feature board. Requests with the most 👍 come first, and a pull request is the fastest way to get one in.
+          </span>
+        </div>
+        <div className="about-ideas-actions">
+          <button type="button" className="btn ghost sm" onClick={() => void window.xaver.shell.openExternal(info.boardUrl)}>
+            Feature board
+          </button>
+          <button type="button" className="btn primary sm" onClick={() => void window.xaver.shell.openExternal(info.requestUrl)}>
+            Request a feature
+          </button>
+        </div>
+      </div>
+
       <div className="card about-card about-links">
         <button type="button" className="btn sm" onClick={() => void window.xaver.shell.openExternal(info.releasesUrl)}>
           All releases
         </button>
-        <button type="button" className="btn sm" onClick={() => void window.xaver.shell.openExternal(info.issuesUrl)}>
+        <button type="button" className="btn sm" onClick={() => void window.xaver.shell.openExternal(info.bugUrl)}>
           Report a problem
         </button>
         <span className="muted about-legal">© 2026 COMPLEX · Proprietary, all rights reserved</span>

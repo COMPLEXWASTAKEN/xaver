@@ -2,6 +2,16 @@
 
 Thanks for wanting to help. **Pull requests are how changes get into Xaver.** If you want a feature or a fix, the fastest way to get it is to open a PR for it. Issues are welcome for bugs and ideas, but there's no promise anyone else will pick them up.
 
+## Requesting features
+
+Before building something, see what people want:
+
+- The [📋 Feature board](https://github.com/COMPLEXWASTAKEN/xaver/issues?q=is%3Aissue+is%3Aopen+label%3Afeature-board) lists every open request ranked by 👍. Vote on the ones you want instead of opening duplicates.
+- New ideas go through the [feature request form](https://github.com/COMPLEXWASTAKEN/xaver/issues/new?template=feature_request.yml), or **About → Request a feature** in the app.
+- Labels show where a request stands: **needs-triage** → **planned** / **help wanted** / **not planned** → **in progress** → closed when it ships.
+- **help wanted** and **good first issue** are the best places to start a pull request.
+- Link your pull request to the request with `Closes #<number>` in the description. The request is labelled **in progress** automatically and closes when the PR is merged.
+
 ## Before you start
 
 - Xaver is built largely with AI coding tools. AI-assisted pull requests are fine. Just make sure you've run the change yourself and you understand what it does.

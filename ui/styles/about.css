@@ -239,6 +239,35 @@
   padding: 14px 18px;
 }
 
+.about-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  background:
+    radial-gradient(120% 160% at 100% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
+    var(--bg-1);
+}
+
+.about-ideas-text {
+  display: flex;
+  flex: 1;
+  min-width: 240px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.about-ideas-text .muted {
+  font-size: 12px;
+}
+
+.about-ideas-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .about-legal {
   margin-left: auto;
   font-size: 11px;
