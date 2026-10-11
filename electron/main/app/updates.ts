@@ -225,7 +225,7 @@ export function installUpdate(): UpdateState {
   if (state.status !== "ready" || !readyFile || !fs.existsSync(readyFile)) return state;
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(readyFile, [], { detached: true, stdio: "ignore", env, windowsHide: false });
+  const child = spawn(readyFile, [], { cwd: os.tmpdir(), detached: true, stdio: "ignore", env, windowsHide: false });
   child.unref();
   set({ status: "installing" });
   setTimeout(() => app.quit(), 600);

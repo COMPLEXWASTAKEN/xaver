@@ -60,9 +60,11 @@ namespace XaverSetup
         public static int Main(string[] argv)
         {
             AppDomain.CurrentDomain.UnhandledException += (s, e) => Log.Write("Fatal: " + e.ExceptionObject);
+            var startedIn = Environment.CurrentDirectory;
+            try { Environment.CurrentDirectory = Path.GetTempPath(); } catch { }
             var args = Args.Parse(argv);
             var uninstallMode = args.Uninstall || !Product.HasPayload;
-            Log.Write($"Start v{Product.Version} mode={(uninstallMode ? "uninstall" : "install")} args=[{string.Join(" ", argv)}]");
+            Log.Write($"Start v{Product.Version} mode={(uninstallMode ? "uninstall" : "install")} args=[{string.Join(" ", argv)}] startedIn={startedIn}");
 
             if (uninstallMode)
             {
