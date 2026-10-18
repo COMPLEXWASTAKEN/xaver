@@ -39,7 +39,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "readable-stream": "^4.7.0",
-    "sql.js": "^1.14.2",
+    "sql.js": "^1.15.0",
     "undici": "^8.11.2",
     "zip-stream": "^7.0.5"
   },
