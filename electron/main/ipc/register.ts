@@ -13,7 +13,7 @@ import {
   pickAndImportCookieFile,
   refreshScreenName
 } from "../auth/session";
-import { cancelJob, downloadSelection, enqueueJob, getLiveItems, listJobs, retryFailed, revealPath } from "../jobs/queue";
+import { cancelJob, clearLive, downloadSelection, enqueueJob, getLiveItems, listJobs, retryFailed, revealPath } from "../jobs/queue";
 import { dismissFailures, failureState } from "../jobs/failures";
 import {
   clearNotices,
@@ -154,6 +154,11 @@ function registerJobs(): void {
   handle("jobs:start", (_e, target: string, opts?: { sources?: string[] }) => enqueueJob(target, true, opts));
   handle("jobs:cancel", (_e, jobId?: string) => cancelJob(jobId));
   handle("jobs:liveItems", () => getLiveItems());
+  handle("jobs:clearLive", (_e, mode: unknown, urls?: unknown) => {
+    const m = mode === "saved" || mode === "selected" ? mode : "all";
+    const list = Array.isArray(urls) ? urls.filter((u): u is string => typeof u === "string").slice(0, 20000) : undefined;
+    return clearLive(m, list);
+  });
   handle("jobs:download", (_e, urls?: string[]) => downloadSelection(urls));
   handle("jobs:downloadAll", () => downloadSelection());
   handle("failures:list", () => failureState());

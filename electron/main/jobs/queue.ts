@@ -150,6 +150,24 @@ export function getLiveItems(): MediaItem[] {
   return [...liveItems];
 }
 
+export type ClearMode = "all" | "saved" | "selected";
+
+export function clearLive(mode: ClearMode, urls?: string[]): { removed: number; left: number } {
+  if (pumping) throw new Error("Wait for the scan to finish.");
+  if (downloading) throw new Error("Wait for the download to finish.");
+  const before = liveItems.length;
+  let keep: MediaItem[] = [];
+  if (mode === "saved") keep = liveItems.filter((it) => !(it.localPath && /^https?:/i.test(it.url)));
+  else if (mode === "selected") {
+    const set = new Set(urls || []);
+    keep = liveItems.filter((it) => !set.has(it.url) && !(it.id && set.has(it.id)));
+  }
+  resetLive(keep);
+  if (!keep.length) lastProfilePath = null;
+  emit("jobs:items", { generation: scanGeneration, items: liveItems });
+  return { removed: before - keep.length, left: keep.length };
+}
+
 function engineOpts(cfg: ReturnType<typeof loadConfig>, signal?: AbortSignal) {
   const launchArgs = safeLaunchArgs(cfg.playwrightArgs);
   return {

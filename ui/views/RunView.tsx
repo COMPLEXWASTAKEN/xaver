@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppConfig, AuthStatus, JobProgress, JobRecord, MediaItem, ScanSource } from "../../electron/shared/types";
 import { GalleryBoard, type GalleryFilter } from "../components/gallery/GalleryBoard";
+import { ClearMenu, type ClearChoice } from "../components/gallery/ClearMenu";
 import { MediaViewer } from "../components/gallery/MediaViewer";
+import { errorText, toast } from "../lib/toasts";
 
 const SCAN_SOURCES: { id: ScanSource; label: string; hint: string }[] = [
   { id: "media", label: "Media", hint: "Photos & videos grid" },
@@ -69,12 +71,14 @@ export function RunView({
   const [preview, setPreview] = useState<MediaItem | null>(null);
   const [busyDl, setBusyDl] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [cleared, setCleared] = useState(false);
   const seenAuto = useRef<Set<string>>(new Set());
   const urlLocked = useRef(false);
   const urlById = useRef<Map<string, string>>(new Map());
 
   const ready = items.length > 0 && !scanning;
   const blocked = scanning || downloading || busyDl;
+  const savedCount = useMemo(() => items.filter((it) => it.localPath && /^https?:/i.test(it.url)).length, [items]);
   const urlTab = tabFromInput(target);
 
   useEffect(() => {
@@ -138,7 +142,9 @@ export function RunView({
       ? progress?.message || "Downloading…"
       : ready
         ? `${items.length} in gallery${hiddenCount ? ` · ${hiddenCount} already downloaded (hidden)` : ""}`
-        : hiddenCount
+        : cleared
+          ? "Gallery cleared · scan again to fill it"
+          : hiddenCount
           ? `Nothing new · ${hiddenCount} already downloaded (hidden)`
           : "Enter a target and scan";
 
@@ -166,6 +172,26 @@ export function RunView({
     }
   };
 
+  const clearGallery = (mode: ClearChoice) => {
+    const urls = mode === "selected" ? [...selected] : undefined;
+    void window.xaver.jobs
+      .clearLive(mode, urls)
+      .then(({ removed, left }) => {
+        if (mode === "selected" || !left) setSelected(new Set());
+        if (!left) {
+          setCleared(true);
+          setPreview(null);
+        }
+        toast({
+          tone: "ok",
+          title: left ? `Removed ${removed}` : "Gallery cleared",
+          body: left ? `${left} still in the gallery.` : "Saved files are still on disk.",
+          ttl: 2500
+        });
+      })
+      .catch((e) => toast({ tone: "error", title: "Couldn't clear", body: errorText(e) }));
+  };
+
   const launchScan = (picked?: ScanSource[]) => {
     const next = picked?.length ? picked : sources;
     if (!next.length) {
@@ -176,6 +202,7 @@ export function RunView({
     setAskOpen(false);
     seenAuto.current = new Set();
     setSelected(new Set());
+    setCleared(false);
     void onStart(target.trim(), next);
   };
 
@@ -325,6 +352,7 @@ export function RunView({
         <button type="button" className="btn sm" disabled={!items.length || blocked} onClick={() => void doDownload()}>
           Save all
         </button>
+        <ClearMenu total={items.length} saved={savedCount} selected={selected.size} disabled={blocked} onClear={clearGallery} />
       </div>
 
       <GalleryBoard

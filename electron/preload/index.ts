@@ -61,6 +61,8 @@ const api = {
       ipcRenderer.invoke("jobs:enqueue", target, opts),
     cancel: (jobId?: string) => ipcRenderer.invoke("jobs:cancel", jobId),
     liveItems: () => ipcRenderer.invoke("jobs:liveItems"),
+    clearLive: (mode: "all" | "saved" | "selected", urls?: string[]) =>
+      ipcRenderer.invoke("jobs:clearLive", mode, urls) as Promise<{ removed: number; left: number }>,
     download: (urls?: string[]) => ipcRenderer.invoke("jobs:download", urls),
     downloadAll: () => ipcRenderer.invoke("jobs:downloadAll"),
     onProgress: (cb: (p: unknown) => void): Unsub => on("jobs:progress", cb),
