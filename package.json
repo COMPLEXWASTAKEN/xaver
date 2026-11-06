@@ -29,7 +29,7 @@
     "release": "node scripts/release.mjs"
   },
   "dependencies": {
-    "@proxyshard/shardx": "^2.0.3",
+    "@proxyshard/shardx": "^2.1.4",
     "archiver": "^7.0.1",
     "archiver-utils": "^5.0.2",
     "compress-commons": "^7.0.1",

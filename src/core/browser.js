@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ShardX } from "@proxyshard/shardx";
+import { CHROMIUM_VERSION, ShardX } from "@proxyshard/shardx";
 
 const ID_FILE = "pms-profile-id.txt";
 
@@ -70,7 +70,7 @@ export async function openShardxContext(options) {
   fs.mkdirSync(cacheDir, { recursive: true });
 
   const sdk = getSdk(cacheDir, onLog);
-  onLog("Preparing ShardX (first run downloads the Chromium 152 engine)…");
+  onLog(`Preparing ShardX (first run downloads the Chromium ${String(CHROMIUM_VERSION).split(".")[0]} engine)…`);
   await sdk.runtime.install();
 
   let profile = await loadOrCreateProfile(sdk, cacheDir, options, onLog);

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { BrowserWindow, dialog, app } from "electron";
+import { CHROMIUM_VERSION } from "@proxyshard/shardx";
 type Cookie = {
   name: string;
   value: string;
@@ -205,7 +206,7 @@ export async function loginWithBrowser(
   let handle: { context: BrowserContext; page: Page; close: () => Promise<void> } | null = null;
 
   try {
-    log("Starting ShardX (anti-detect Chromium 152)…");
+    log(`Starting ShardX (anti-detect Chromium ${String(CHROMIUM_VERSION).split(".")[0]})…`);
     const opened = await openShardxContext(shardxLaunchFromConfig(log));
     if (!opened) throw new Error("ShardX could not start.");
     handle = opened;

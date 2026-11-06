@@ -66,7 +66,7 @@ export function AccountView({
       <div className="card stack">
         <div className="label">ShardX login</div>
         <div className="muted">
-          Opens anti-detect Chromium 152 from{" "}
+          Opens anti-detect Chromium 157 from{" "}
           <button
             type="button"
             className="btn ghost sm"

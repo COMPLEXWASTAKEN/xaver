@@ -391,7 +391,7 @@ export function SettingsView({
               >
                 ShardX / ShardBrowser
               </button>
-              , a free anti-detect Chromium 152. Engine-level fingerprints, no license key. Keep headless off for login.
+              , a free anti-detect Chromium 157. Engine-level fingerprints, no license key. Keep headless off for login.
             </div>
             {visible("Canvas / WebGL noise") && (
               <Row title="Canvas / WebGL noise" hint="Per-profile noise so two runs do not share identical canvas hashes.">
