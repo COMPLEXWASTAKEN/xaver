@@ -36,7 +36,8 @@ export function isAppUrl(url: string): boolean {
     const r = new URL(rendererRoot());
     if (u.protocol !== r.protocol) return false;
     if (u.protocol === "file:") {
-      return decodeURIComponent(u.pathname).toLowerCase().startsWith(decodeURIComponent(r.pathname).toLowerCase());
+      const root = decodeURIComponent(r.pathname).toLowerCase().replace(/\/?$/, "/");
+      return decodeURIComponent(u.pathname).toLowerCase().startsWith(root);
     }
     return u.origin === r.origin;
   } catch {

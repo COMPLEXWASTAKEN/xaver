@@ -22,7 +22,7 @@ registerAppIdentity();
 installNavigationGuards();
 
 const primaryInstance = app.requestSingleInstanceLock();
-if (!primaryInstance) app.quit();
+if (!primaryInstance) app.exit(0);
 
 app.on("second-instance", () => {
   if (!isShuttingDown()) revealWindow();
@@ -56,7 +56,7 @@ app.whenReady().then(() => {
 app.on("browser-window-created", (_e, win) => attachWindow(win));
 
 app.on("before-quit", (e) => {
-  if (cleanedUp) return;
+  if (cleanedUp || !primaryInstance) return;
   e.preventDefault();
   if (!beginShutdown()) return;
   void (async () => {

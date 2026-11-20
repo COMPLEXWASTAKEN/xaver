@@ -11,7 +11,7 @@ type DownloadError = { url: string; err: string; status?: number; item?: MediaIt
 const HOPELESS = new Set<FailReason>(["gone", "denied", "notmedia"]);
 const SECOND_PASS_DELAY_MS = 4000;
 import { loadEngineModule } from "../engine/loader";
-import { mediaDbPath } from "../storage/media-db";
+import { dbMaintenanceRunning, mediaDbPath } from "../storage/media-db";
 import { databaseKey, isLocked } from "../security/lock";
 import { notify } from "../notifications/center";
 
@@ -64,13 +64,41 @@ function taskbar(progress: number, mode?: "normal" | "indeterminate" | "error"):
   } catch {}
 }
 
+let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
 function settle(ok: boolean): void {
+  if (settleTimer) clearTimeout(settleTimer);
+  settleTimer = null;
   if (ok) {
     taskbar(-1);
     return;
   }
   taskbar(1, "error");
-  setTimeout(() => taskbar(-1), 4000).unref?.();
+  settleTimer = setTimeout(() => {
+    settleTimer = null;
+    if (!busy()) taskbar(-1);
+  }, 4000);
+  settleTimer.unref?.();
+}
+
+let lastSnapshotAt = 0;
+let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+
+function emitSnapshotSoon(): void {
+  const wait = 400 - (Date.now() - lastSnapshotAt);
+  if (wait <= 0) {
+    if (snapshotTimer) clearTimeout(snapshotTimer);
+    snapshotTimer = null;
+    lastSnapshotAt = Date.now();
+    emit("jobs:updated", snapshot());
+    return;
+  }
+  if (snapshotTimer) return;
+  snapshotTimer = setTimeout(() => {
+    snapshotTimer = null;
+    lastSnapshotAt = Date.now();
+    emit("jobs:updated", snapshot());
+  }, wait);
 }
 
 const SESSION_ERROR = /session|sign ?in|log ?in|logged out|401|403|unauthori[sz]ed|cookie/i;
@@ -91,8 +119,10 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
-function persist(): void {
-  saveHistory([...queue.filter((j) => j.status === "queued"), ...history]);
+function persist(extra: JobRecord[] = []): void {
+  try {
+    saveHistory([...extra, ...queue.filter((j) => j.status === "queued"), ...history]);
+  } catch {}
 }
 
 function busy(): boolean {
@@ -124,7 +154,7 @@ export function initJobsFromDisk(): void {
 function pushLog(job: JobRecord, msg: string): void {
   job.logs.push(msg);
   if (job.logs.length > 40) job.logs.splice(0, job.logs.length - 40);
-  emit("jobs:log", { jobId: job.id, message: msg, logs: job.logs });
+  emit("jobs:log", { jobId: job.id, message: msg });
 }
 
 function loadRunner() {
@@ -133,8 +163,8 @@ function loadRunner() {
 
 function snapshot() {
   return {
-    queue: queue.map((j) => ({ ...j })),
-    history: history.map((j) => ({ ...j })),
+    queue: queue.map((j) => ({ ...j, logs: j.logs.slice(-1) })),
+    history: history.map((j) => ({ ...j, logs: j.logs.slice(-1) })),
     activeJobId,
     downloading,
     scanning: pumping,
@@ -213,6 +243,7 @@ export function enqueueJob(
   startImmediately = true,
   opts?: { sources?: string[] }
 ): JobRecord {
+  if (dbMaintenanceRunning()) throw new Error("Wait for the database task to finish.");
   if (downloading) {
     throw new Error("Wait for the current download to finish.");
   }
@@ -361,7 +392,7 @@ async function runCollect(job: JobRecord): Promise<void> {
             maxScrolls: p.maxScrolls as number | undefined,
             mediaCount: p.mediaCount as number | undefined
           } satisfies JobProgress);
-          emit("jobs:updated", snapshot());
+          emitSnapshotSoon();
         },
         onItem: (item: MediaItem) => {
           if (gen !== scanGeneration) return;
@@ -382,9 +413,12 @@ async function runCollect(job: JobRecord): Promise<void> {
           if (gen !== scanGeneration) return;
           const idx = findLive(item);
           if (idx < 0) return;
-          resetLive(liveItems.filter((_, i) => i !== idx));
+          const [gone] = liveItems.splice(idx, 1);
+          liveIndex.delete(gone.url);
+          if (gone.id) liveIndex.delete(gone.id);
+          for (let i = idx; i < liveItems.length; i++) indexLive(liveItems[i], i);
           job.mediaCount = liveItems.length;
-          emit("jobs:items", { jobId: job.id, generation: gen, items: liveItems });
+          emit("jobs:item-removed", { jobId: job.id, generation: gen, url: gone.url, id: gone.id || null });
         }
       }
     );
@@ -486,6 +520,7 @@ async function runDownload(
   beforeRecord?: () => void
 ): Promise<JobRecord> {
   if (downloading) throw new Error("A download is already running.");
+  if (dbMaintenanceRunning()) throw new Error("Wait for the database task to finish.");
   const cfg = loadConfig();
   const cookies = getSessionCookies();
   if (!cookies.length) throw new Error("No session. Sign in first.");
@@ -538,7 +573,7 @@ async function runDownload(
           failed: p.failed as number | undefined,
           mediaCount: items.length
         } satisfies JobProgress);
-        emit("jobs:updated", snapshot());
+        emitSnapshotSoon();
       },
       onItem: (item: MediaItem) => {
         if (!opts.live || gen !== scanGeneration) return;
@@ -564,17 +599,31 @@ async function runDownload(
     const again = errors.filter((e) => e.item && !HOPELESS.has(classify(e.status || 0, e.err)));
     if (cfg.retryFailedPass && !opts.retry && again.length && !signal.aborted) {
       pushLog(job, `Trying ${plural(again.length, "failed file")} once more`);
-      await new Promise((r) => setTimeout(r, SECOND_PASS_DELAY_MS));
-      if (signal.aborted) throw Object.assign(new Error("Cancelled"), { name: "AbortError" });
-      const second = await runDownloadJob(
-        { ...base, items: again.map((e) => e.item!), runDir: result.runDir, wantZip: false },
-        { ...hooks, onProgress: () => {} }
-      );
-      const recovered = second.saved.length + second.skipped.length;
-      errors = [...errors.filter((e) => !again.includes(e)), ...second.errors];
-      saved = [...saved, ...second.saved];
-      skipped = [...skipped, ...second.skipped];
-      if (recovered) pushLog(job, `Recovered ${recovered} on the second try`);
+      try {
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, SECOND_PASS_DELAY_MS);
+          signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(t);
+              resolve();
+            },
+            { once: true }
+          );
+        });
+        if (signal.aborted) throw Object.assign(new Error("Cancelled"), { name: "AbortError" });
+        const second = await runDownloadJob(
+          { ...base, items: again.map((e) => e.item!), runDir: result.runDir, wantZip: false },
+          { ...hooks, onProgress: () => {} }
+        );
+        const recovered = second.saved.length + second.skipped.length;
+        errors = [...errors.filter((e) => !again.includes(e)), ...second.errors];
+        saved = [...saved, ...second.saved];
+        skipped = [...skipped, ...second.skipped];
+        if (recovered) pushLog(job, `Recovered ${recovered} on the second try`);
+      } catch (e) {
+        pushLog(job, signal.aborted ? "Stopped the second try" : `Second try failed: ${String((e as Error)?.message || e)}`);
+      }
     }
 
     job.status = "done";
@@ -653,16 +702,21 @@ export function isBusy(): boolean {
 
 export function stopAll(): void {
   const now = new Date().toISOString();
+  const active: JobRecord[] = [];
   for (const job of queue.splice(0)) {
-    if (job.status !== "queued") continue;
+    if (job.status !== "queued") {
+      active.push(job);
+      continue;
+    }
     job.status = "cancelled";
     job.finishedAt = now;
     job.logs.push("Cancelled");
     history.unshift(job);
   }
+  queue = active;
   downloadAbort?.abort();
   scanAbort?.abort();
-  persist();
+  persist(active.filter((j) => !history.includes(j)).map((j) => ({ ...j, status: "cancelled" as const, finishedAt: now })));
 }
 
 export async function whenIdle(timeoutMs: number): Promise<boolean> {

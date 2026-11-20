@@ -73,6 +73,7 @@ export function writeSecureJson(base: string, data: unknown): void {
     }
     return;
   }
+  if (fs.existsSync(encPath(base))) throw new Error("Secure storage isn't available right now, so the change wasn't saved.");
   atomicWrite(base, json);
 }
 

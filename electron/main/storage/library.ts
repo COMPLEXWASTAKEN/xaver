@@ -114,60 +114,78 @@ export function listRuns(): LibraryRun[] {
 
 const FINGERPRINT_CHUNK = 64 * 1024;
 
-function fileFingerprint(full: string, size: number): string {
+async function fileFingerprint(full: string, size: number): Promise<string> {
   const hash = crypto.createHash("sha1");
   hash.update(String(size));
-  let fd: number | null = null;
+  let fh: fs.promises.FileHandle | null = null;
   try {
-    fd = fs.openSync(full, "r");
+    fh = await fs.promises.open(full, "r");
     const head = Buffer.alloc(Math.min(FINGERPRINT_CHUNK, size));
-    fs.readSync(fd, head, 0, head.length, 0);
+    await fh.read(head, 0, head.length, 0);
     hash.update(head);
     if (size > FINGERPRINT_CHUNK * 2) {
       const tail = Buffer.alloc(FINGERPRINT_CHUNK);
-      fs.readSync(fd, tail, 0, tail.length, size - FINGERPRINT_CHUNK);
+      await fh.read(tail, 0, tail.length, size - FINGERPRINT_CHUNK);
       hash.update(tail);
     } else if (size > FINGERPRINT_CHUNK) {
       const rest = Buffer.alloc(size - FINGERPRINT_CHUNK);
-      fs.readSync(fd, rest, 0, rest.length, FINGERPRINT_CHUNK);
+      await fh.read(rest, 0, rest.length, FINGERPRINT_CHUNK);
       hash.update(rest);
     }
   } catch {
     return `path:${full}`;
   } finally {
-    if (fd !== null) {
-      try {
-        fs.closeSync(fd);
-      } catch {}
-    }
+    await fh?.close().catch(() => {});
   }
   return hash.digest("hex");
 }
 
-export function listRunFiles(runId: string): LibraryFile[] {
-  const runs = listRuns();
-  const run = runs.find((r) => r.id === runId || r.name === runId);
-  if (!run) return [];
-  const out: LibraryFile[] = [];
+export async function listRunFiles(runId: string): Promise<LibraryFile[]> {
+  const root = resolvedOutputRoot();
+  const id = String(runId || "");
+  if (!root || !id || id.startsWith(".") || /[\\/]/.test(id)) return [];
+  const dir = path.join(root, id);
+  if (!isUnderDir(dir, root)) return [];
+  try {
+    if (!(await fs.promises.stat(dir)).isDirectory()) return [];
+  } catch {
+    return [];
+  }
+  const found: { subdir: string; name: string; kind: Kind }[] = [];
+  eachMedia(dir, (subdir, name, kind) => found.push({ subdir, name, kind }));
+  const files: (LibraryFile & { size: number })[] = [];
+  const LIMIT = 16;
+  for (let i = 0; i < found.length; i += LIMIT) {
+    const batch = await Promise.all(
+      found.slice(i, i + LIMIT).map(async ({ subdir, name, kind }) => {
+        const full = path.join(dir, subdir, name);
+        try {
+          const st = await fs.promises.stat(full);
+          if (!st.isFile() || st.size === 0) return null;
+          const rel = (subdir ? `${subdir}/${name}` : name).replace(/\\/g, "/");
+          return { id: `${id}/${rel}`, name, path: full, kind, bytes: st.size, runId: id, rel, size: st.size };
+        } catch {
+          return null;
+        }
+      })
+    );
+    for (const f of batch) if (f) files.push(f);
+  }
+  const bySize = new Map<number, number>();
+  for (const f of files) bySize.set(f.size, (bySize.get(f.size) || 0) + 1);
   const seenContent = new Set<string>();
-  eachMedia(run.path, (subdir, name, kind) => {
-    const full = path.join(run.path, subdir, name);
-    let st: fs.Stats;
-    try {
-      st = fs.statSync(full);
-    } catch {
-      return;
+  const out: LibraryFile[] = [];
+  for (const f of files) {
+    if ((bySize.get(f.size) || 0) > 1) {
+      const fp = await fileFingerprint(f.path, f.size);
+      if (seenContent.has(fp)) continue;
+      seenContent.add(fp);
     }
-    if (!st.isFile() || st.size === 0) return;
-    const fp = fileFingerprint(full, st.size);
-    if (seenContent.has(fp)) return;
-    seenContent.add(fp);
-    const rel = (subdir ? `${subdir}/${name}` : name).replace(/\\/g, "/");
-    out.push({ id: `${run.id}/${rel}`, name, path: full, kind, bytes: st.size, runId: run.id, rel });
-  });
+    const { size: _size, ...file } = f;
+    out.push(file);
+  }
   return out;
 }
-
 
 function isUnderDir(abs: string, root: string): boolean {
   const fold = (p: string) => (process.platform === "win32" ? p.toLowerCase() : p);

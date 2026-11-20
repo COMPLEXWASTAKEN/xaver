@@ -8,6 +8,7 @@ import type { AppInfo, UpdateRelease, UpdateState } from "../../shared/types";
 import { notify } from "../notifications/center";
 import { loadConfig } from "../storage/config";
 import { getMainWindow } from "./window";
+import { isBusy } from "../jobs/queue";
 
 const REPO = "COMPLEXWASTAKEN/xaver";
 const API = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -141,6 +142,7 @@ async function fetchLatest(): Promise<UpdateState> {
 
 export function checkForUpdates(): Promise<UpdateState> {
   if (state.status === "downloading" || state.status === "installing") return Promise.resolve(state);
+  if (state.status === "ready" && readyFile && fs.existsSync(readyFile)) return Promise.resolve(state);
   if (!checking) checking = fetchLatest().finally(() => (checking = null));
   return checking;
 }
@@ -159,8 +161,12 @@ async function expectedHash(): Promise<string> {
   if (!sums || !assets.setup || !safeDownloadUrl(sums.browser_download_url)) throw new Error("This release has no checksum file.");
   const res = await net.fetch(sums.browser_download_url);
   if (!res.ok) throw new Error(`Couldn't read the checksums (${res.status}).`);
-  const line = (await res.text()).split(/\r?\n/).find((l) => l.trim().endsWith(assets.setup!.name));
-  const hash = line?.trim().split(/\s+/)[0]?.toLowerCase();
+  const want = assets.setup.name;
+  let hash = "";
+  for (const raw of (await res.text()).split(/\r?\n/)) {
+    const m = raw.trim().match(/^([a-fA-F0-9]{64})\s+\*?(.+)$/);
+    if (m && m[2].trim() === want) hash = m[1].toLowerCase();
+  }
   if (!hash || !/^[a-f0-9]{64}$/.test(hash)) throw new Error("The checksum file doesn't list the installer.");
   return hash;
 }
@@ -223,6 +229,7 @@ export function cancelDownload(): void {
 
 export function installUpdate(): UpdateState {
   if (state.status !== "ready" || !readyFile || !fs.existsSync(readyFile)) return state;
+  if (isBusy()) throw new Error("A scan or download is still running. Stop it or let it finish, then install.");
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(readyFile, [], { cwd: os.tmpdir(), detached: true, stdio: "ignore", env, windowsHide: false });

@@ -81,6 +81,34 @@ export function resolvedOutputRoot(cfg: AppConfig = loadConfig()): string {
   return root && path.isAbsolute(root) && path.resolve(root) === path.normalize(root) ? root : getDefaultOutputRoot();
 }
 
+const RANGES: Partial<Record<keyof AppConfig, [number, number]>> = {
+  maxScrolls: [1, 100000],
+  scrollDelayMs: [0, 60000],
+  maxIdleRounds: [1, 2000],
+  viewportWidth: [320, 7680],
+  viewportHeight: [320, 4320],
+  downloadConcurrency: [1, 8],
+  requestTimeoutMs: [1000, 3600000],
+  retryCount: [0, 6],
+  notifyQuietFrom: [0, 23],
+  notifyQuietTo: [0, 23],
+  uiScale: [50, 200]
+};
+
+function safeRootFolder(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return "";
+  if (!path.isAbsolute(value)) return null;
+  const abs = path.resolve(value);
+  if (path.parse(abs).root.toLowerCase() === abs.toLowerCase()) return null;
+  const lower = abs.toLowerCase();
+  const blocked = [process.env.SystemRoot, process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.ProgramData]
+    .filter(Boolean)
+    .map((d) => path.resolve(d as string).toLowerCase());
+  if (blocked.some((d) => lower === d || lower.startsWith(d + path.sep))) return null;
+  return abs;
+}
+
 function sanitize(patch: Partial<AppConfig>): Partial<AppConfig> {
   const out: Record<string, unknown> = {};
   const defaults = DEFAULT_CONFIG as Record<string, unknown>;
@@ -88,12 +116,21 @@ function sanitize(patch: Partial<AppConfig>): Partial<AppConfig> {
     if (!(key in defaults)) continue;
     const kind = typeof defaults[key];
     if (kind === "boolean" && typeof value === "boolean") out[key] = value;
-    else if (kind === "number" && Number.isFinite(Number(value))) out[key] = Number(value);
+    else if (kind === "number" && Number.isFinite(Number(value))) {
+      const range = RANGES[key as keyof AppConfig];
+      out[key] = range ? Math.min(range[1], Math.max(range[0], Math.round(Number(value)))) : Number(value);
+    }
     else if (kind === "string" && typeof value === "string") out[key] = value.slice(0, 2048);
   }
   if (typeof out.playwrightArgs === "string") out.playwrightArgs = safeLaunchArgs(out.playwrightArgs).join(" ");
   if (typeof out.proxyUrl === "string" && out.proxyUrl.trim() && !/^(https?|socks[45]?):\/\//i.test(out.proxyUrl.trim())) {
     delete out.proxyUrl;
+  }
+  for (const key of ["outputRoot", "shardxCacheDir"] as const) {
+    if (typeof out[key] !== "string") continue;
+    const safe = safeRootFolder(out[key] as string);
+    if (safe === null) delete out[key];
+    else out[key] = safe;
   }
   if ("folderLayout" in out && !["run", "profile", "single"].includes(out.folderLayout as string)) delete out.folderLayout;
   if (typeof out.singleFolderName === "string") out.singleFolderName = safeFolderName(out.singleFolderName);

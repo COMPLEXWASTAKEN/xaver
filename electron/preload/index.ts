@@ -69,6 +69,7 @@ const api = {
     onItem: (cb: (p: unknown) => void): Unsub => on("jobs:item", cb),
     onItems: (cb: (p: unknown) => void): Unsub => on("jobs:items", cb),
     onItemsReset: (cb: (p: unknown) => void): Unsub => on("jobs:items-reset", cb),
+    onItemRemoved: (cb: (p: unknown) => void): Unsub => on("jobs:item-removed", cb),
     onDone: (cb: (p: unknown) => void): Unsub => on("jobs:done", cb),
     onUpdated: (cb: (p: unknown) => void): Unsub => on("jobs:updated", cb),
     onLog: (cb: (p: unknown) => void): Unsub => on("jobs:log", cb)

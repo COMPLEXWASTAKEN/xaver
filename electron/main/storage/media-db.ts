@@ -4,6 +4,7 @@ import { app, BrowserWindow, dialog, shell } from "electron";
 import { resolvedOutputRoot } from "./config";
 import { loadEngineModule } from "../engine/loader";
 import { databaseKey } from "../security/lock";
+import { isBusy } from "../jobs/queue";
 import type { DbOverview, DbSearchRow, LegacyIndexStatus, MigrateResult, RelinkResult } from "../../shared/types";
 
 const DB_FILE_NAME = "media-index.sqlite";
@@ -15,7 +16,7 @@ type EngineDb = {
   importLegacy: (file: string, o?: { outRoot?: string; archive?: boolean }) => MigrateResult;
   verify: () => { checked: number; missing: number };
   pruneMissing: () => { removedFiles: number; removedKeys: number };
-  seedFromDisk: (outRoot: string) => { scanned: number; added: number };
+  seedFromDisk: (outRoot: string) => Promise<{ scanned: number; added: number }>;
   compact: () => void;
   search: (q: string, limit?: number) => DbSearchRow[];
   backupTo: (dest: string) => string;
@@ -30,10 +31,26 @@ type EngineDbModule = {
 
 let lock: Promise<unknown> = Promise.resolve();
 
+let maintaining = 0;
+
 function exclusive<T>(fn: () => Promise<T> | T): Promise<T> {
   const next = lock.then(fn, fn);
   lock = next.catch(() => {});
   return next;
+}
+
+async function maintain<T>(fn: () => Promise<T> | T): Promise<T> {
+  if (isBusy()) throw new Error("Wait for the current scan or download to finish.");
+  maintaining++;
+  try {
+    return await fn();
+  } finally {
+    maintaining--;
+  }
+}
+
+export function dbMaintenanceRunning(): boolean {
+  return maintaining > 0;
 }
 
 export function mediaDbPath(): string {
@@ -61,7 +78,7 @@ export async function dbOverview(): Promise<DbOverview> {
 }
 
 export function dbMigrateLegacy(file?: string): Promise<MigrateResult> {
-  return exclusive(async () => {
+  return exclusive(() => maintain(async () => {
     const d = await db();
     const mod = await engine();
     const root = resolvedOutputRoot();
@@ -69,7 +86,7 @@ export function dbMigrateLegacy(file?: string): Promise<MigrateResult> {
     if (!target || !fs.existsSync(target)) throw new Error("No old index file found to migrate.");
     const outRoot = path.dirname(target);
     return d.importLegacy(target, { outRoot });
-  });
+  }));
 }
 
 export async function dbPickAndMigrate(win: BrowserWindow | null): Promise<MigrateResult | null> {
@@ -88,15 +105,17 @@ export function dbVerify() {
 }
 
 export function dbPruneMissing() {
-  return exclusive(async () => (await db()).pruneMissing());
+  return exclusive(() => maintain(async () => (await db()).pruneMissing()));
 }
 
 export function dbRescan() {
-  return exclusive(async () => {
-    const root = resolvedOutputRoot();
-    if (!root || !fs.existsSync(root)) throw new Error("Output folder does not exist yet.");
-    return (await db()).seedFromDisk(root);
-  });
+  return exclusive(() =>
+    maintain(async () => {
+      const root = resolvedOutputRoot();
+      if (!root || !fs.existsSync(root)) throw new Error("Output folder does not exist yet.");
+      return (await db()).seedFromDisk(root);
+    })
+  );
 }
 
 export function dbRelink(win: BrowserWindow | null): Promise<RelinkResult | null> {
@@ -104,17 +123,21 @@ export function dbRelink(win: BrowserWindow | null): Promise<RelinkResult | null
     const opts = { title: "Find moved files", properties: ["openDirectory"] as ("openDirectory")[] };
     const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
     if (res.canceled || !res.filePaths[0]) return null;
-    const d = await db();
-    const { scanned, added } = d.seedFromDisk(res.filePaths[0]);
-    return { folder: res.filePaths[0], scanned, found: added, missing: d.verify().missing };
+    return maintain(async () => {
+      const d = await db();
+      const { scanned, added } = await d.seedFromDisk(res.filePaths[0]);
+      return { folder: res.filePaths[0], scanned, found: added, missing: d.verify().missing };
+    });
   });
 }
 
 export function dbCompact() {
-  return exclusive(async () => {
-    (await db()).compact();
-    return { ok: true };
-  });
+  return exclusive(() =>
+    maintain(async () => {
+      (await db()).compact();
+      return { ok: true };
+    })
+  );
 }
 
 export async function dbSearch(q: string): Promise<DbSearchRow[]> {
