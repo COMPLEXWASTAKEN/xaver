@@ -52,7 +52,7 @@
     "electron": "^44.9.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^3.0.0",
-    "javascript-obfuscator": "^5.8.1",
+    "javascript-obfuscator": "^5.10.1",
     "png-to-ico": "^3.0.2",
     "sharp": "^0.35.5",
     "typescript": "^7.0.2",
