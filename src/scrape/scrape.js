@@ -292,16 +292,34 @@ export async function readLoggedInScreenName(page, opts = {}) {
   const state = await openX(page, "https://x.com/home", opts);
   if (state === "login") return null;
   for (let i = 0; i < 10; i++) {
-    const handle = await page.evaluate(pageFn(PAGE_READ_HANDLE));
+    const handle = await softEval(page, PAGE_READ_HANDLE, undefined, null);
     if (handle) return handle;
-    await sleep(500);
+    await sleep(500, opts.signal);
   }
   return null;
 }
 
-async function drainGraphqlBuffer(page, addItems, blocked) {
-  const bodies = await page.evaluate(pageFn(PAGE_DRAIN_GQL));
+function bodyPrint(text) {
+  return `${text.length}:${text.slice(0, 48)}:${text.slice(-48)}`;
+}
+
+async function softEval(page, source, arg, fallback) {
+  try {
+    return await (arg === undefined ? page.evaluate(pageFn(source)) : page.evaluate(pageFn(source), arg));
+  } catch (e) {
+    const msg = String(e?.message || e);
+    if (/context was destroyed|navigat|Cannot find context|frame was detached|Execution context/i.test(msg)) return fallback;
+    throw e;
+  }
+}
+
+async function drainGraphqlBuffer(page, addItems, blocked, parsed) {
+  const bodies = (await softEval(page, PAGE_DRAIN_GQL, undefined, [])) || [];
   for (const body of bodies) {
+    if (typeof body !== "string") continue;
+    const print = bodyPrint(body);
+    if (parsed.has(print)) continue;
+    parsed.add(print);
     try {
       const json = JSON.parse(body);
       const batch = [];
@@ -312,7 +330,8 @@ async function drainGraphqlBuffer(page, addItems, blocked) {
 }
 
 async function scrapeVisible(page, addItems, tweetIds) {
-  const snap = await page.evaluate(pageFn(PAGE_SCRAPE_VISIBLE));
+  const snap = await softEval(page, PAGE_SCRAPE_VISIBLE, undefined, null);
+  if (!snap) return false;
 
   for (const id of snap.tweetIds) tweetIds.add(id);
   addItems(
@@ -324,7 +343,7 @@ async function scrapeVisible(page, addItems, tweetIds) {
 }
 
 async function scrollTimeline(page) {
-  await page.evaluate(pageFn(PAGE_SCROLL));
+  await softEval(page, PAGE_SCROLL, undefined, null);
 }
 
 async function dismissNoise(page) {
@@ -396,8 +415,10 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
   const withheld = new Set();
   const onWithheld = typeof options.onWithheld === "function" ? options.onWithheld : null;
   const isBlocked = (it) => isPlaceholderThumb(it.thumb) || (blocked.size > 0 && itemBlockKeys(it).some((k) => blocked.has(k)));
+  let checkedBlocked = 0;
   const dropBlocked = () => {
-    if (!blocked.size) return;
+    if (blocked.size === checkedBlocked) return;
+    checkedBlocked = blocked.size;
     for (const [key, it] of seen) {
       if (!isBlocked(it)) continue;
       seen.delete(key);
@@ -442,6 +463,7 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
   };
 
   await page.addInitScript({ content: PAGE_GRAPHQL_CAPTURE });
+  const parsed = new Set();
 
   const onResponse = async (res) => {
     try {
@@ -453,6 +475,10 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
       if (ct && !/json|javascript/i.test(ct) && !/graphql/i.test(url)) return;
       const text = await res.text().catch(() => "");
       if (!text || text.length < 32 || (text[0] !== "{" && text[0] !== "[")) return;
+      const print = bodyPrint(text);
+      if (parsed.has(print)) return;
+      parsed.add(print);
+      if (parsed.size > 5000) parsed.clear();
       try {
         const json = JSON.parse(text);
         const batch = [];
@@ -499,7 +525,7 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
         authedChecked = true;
       }
 
-      const protectedLock = await page.evaluate(pageFn(PAGE_PROTECTED));
+      const protectedLock = await softEval(page, PAGE_PROTECTED, undefined, false);
       if (protectedLock) {
         console.warn(
           "Profile shows protected posts. Media only appears if this account can see them."
@@ -514,8 +540,8 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
 
       while (scrolls < maxScrolls && idle < maxIdleRounds) {
         throwIfAborted();
-        await drainGraphqlBuffer(page, addItems, blocked);
-        await scrapeVisible(page, addItems, tweetIds);
+        await drainGraphqlBuffer(page, addItems, blocked, parsed);
+        const ended = await scrapeVisible(page, addItems, tweetIds);
         await dismissNoise(page);
 
         const mediaCount = seen.size;
@@ -542,23 +568,24 @@ export async function collectMediaFromProfile(page, profilePath, options = {}) {
 
         lastTweetCount = tweetCount;
         lastMediaCount = mediaCount;
+        if (ended && !progress && idle >= 3) break;
 
         await scrollTimeline(page);
         await sleep(pauseMs, signal);
         scrolls++;
 
-        await drainGraphqlBuffer(page, addItems, blocked);
+        await drainGraphqlBuffer(page, addItems, blocked, parsed);
 
-        const bottom = await page.evaluate(pageFn(PAGE_AT_BOTTOM));
+        const bottom = await softEval(page, PAGE_AT_BOTTOM, undefined, false);
 
         if (bottom && !progress) stuckAtBottom++;
         else if (!bottom) stuckAtBottom = 0;
 
-        if (stuckAtBottom >= 12 && idle >= 20) break;
+        if (stuckAtBottom >= 10 && idle >= 14) break;
       }
 
       totalScrolls += scrolls;
-      await drainGraphqlBuffer(page, addItems, blocked);
+      await drainGraphqlBuffer(page, addItems, blocked, parsed);
       await scrapeVisible(page, addItems, tweetIds);
     }
 

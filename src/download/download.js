@@ -3,8 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
+import { once } from "node:events";
 import { createRequire } from "node:module";
 import archiver from "archiver";
 import { imageFetchCandidates, filenameFor, sanitizeName, mediaIdentity, collapseMediaItems } from "../scrape/media.js";
@@ -22,10 +21,22 @@ export function createHttpContext(opts = {}) {
     try {
       const { ProxyAgent } = require("undici");
       dispatcher = new ProxyAgent(proxyUrl);
-    } catch {}
+    } catch (e) {
+      throw new Error(`The proxy address isn't valid (${e?.message || e}). Fix it in Settings or clear it.`);
+    }
   }
+  const fetchFn = dispatcher ? require("undici").fetch : fetch;
+  const cookieHeader = String(opts.cookieHeader || "");
+  const wantsCookies = (url) => {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      return host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com");
+    } catch {
+      return false;
+    }
+  };
   return {
-    async get(url, init = {}) {
+    async save(url, init, file) {
       const ctrl = new AbortController();
       let timer = setTimeout(() => ctrl.abort(), timeout);
       const bump = () => {
@@ -38,44 +49,94 @@ export function createHttpContext(opts = {}) {
         if (outer.aborted) ctrl.abort();
         else outer.addEventListener("abort", onOuterAbort, { once: true });
       }
+      let out = null;
       try {
         const headers = { ...extra, ...(init.headers || {}) };
+        if (cookieHeader && wantsCookies(url)) headers.Cookie = cookieHeader;
         const fetchOpts = { headers, redirect: "follow", signal: ctrl.signal };
         if (dispatcher) fetchOpts.dispatcher = dispatcher;
-        const fetchFn = dispatcher ? require("undici").fetch : fetch;
         const res = await fetchFn(url, fetchOpts);
         bump();
-        const chunks = [];
-        if (res.body && typeof res.body.getReader === "function") {
-          const reader = res.body.getReader();
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(Buffer.from(value));
-            bump();
-          }
-        } else {
-          chunks.push(Buffer.from(await res.arrayBuffer()));
+        const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
+        if (!res.ok) {
+          try {
+            await res.body?.cancel();
+          } catch {}
+          const err = new Error(`HTTP ${res.status} for ${url}`);
+          err.status = res.status;
+          err.retryAfter = res.headers.get("retry-after") || undefined;
+          throw err;
         }
-        const buf = Buffer.concat(chunks);
-        const hdrs = {};
-        res.headers.forEach((v, k) => {
-          hdrs[k] = v;
-        });
-        return {
-          ok: () => res.ok,
-          status: () => res.status,
-          headers: () => hdrs,
-          url: () => res.url,
-          body: async () => buf
+        const hash = crypto.createHash("sha256");
+        let bytes = 0;
+        let head = Buffer.alloc(0);
+        let checked = false;
+        const check = () => {
+          checked = true;
+          if (looksLikeHtml(head)) throw new Error(`HTML response for ${url}`);
+          if (looksLikePlaylist(head)) throw new Error(`Not media (playlist) for ${url}`);
+          if (!looksLikeMedia(head) && !/^(image|video|application\/octet-stream)/i.test(contentType)) {
+            throw new Error(`Not media (${contentType || "unknown"}) for ${url}`);
+          }
+          out = fs.createWriteStream(file);
+          out.on("error", () => {});
         };
+        const write = async (chunk) => {
+          hash.update(chunk);
+          bytes += chunk.length;
+          if (!out.write(chunk)) await once(out, "drain");
+        };
+        if (res.body) {
+          for await (const value of res.body) {
+            const chunk = Buffer.from(value);
+            bump();
+            if (!checked) {
+              head = Buffer.concat([head, chunk]);
+              if (head.length < 64) continue;
+              check();
+              await write(head);
+              continue;
+            }
+            await write(chunk);
+          }
+        }
+        if (!checked) {
+          check();
+          if (head.length) await write(head);
+        }
+        await new Promise((resolve, reject) => {
+          out.once("error", reject);
+          out.end(resolve);
+        });
+        out = null;
+        if (!bytes) throw new Error(`Empty response for ${url}`);
+        return { contentType, url: res.url || url, sha256: hash.digest("hex"), bytes, head: head.subarray(0, 64) };
+      } catch (e) {
+        if (out) {
+          out.destroy();
+          await once(out, "close").catch(() => {});
+        }
+        await fs.promises.rm(file, { force: true }).catch(() => {});
+        if (ctrl.signal.aborted && !outer?.aborted) {
+          const err = new Error(`Timed out after ${Math.max(1, Math.round(timeout / 1000))}s for ${url}`);
+          err.status = 408;
+          throw err;
+        }
+        throw e;
       } finally {
         clearTimeout(timer);
         outer?.removeEventListener("abort", onOuterAbort);
       }
     },
-    async dispose() {}
+    async dispose() {
+      if (dispatcher) await dispatcher.close().catch(() => {});
+      dispatcher = null;
+    }
   };
+}
+
+function looksLikePlaylist(buf) {
+  return Buffer.from(buf).subarray(0, 16).toString("utf8").trimStart().startsWith("#EXTM3U");
 }
 
 function looksLikeHtml(buf) {
@@ -91,12 +152,7 @@ function looksLikeMedia(buf) {
   if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return true;
   if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46) return true;
   if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) return true;
-  if (b.toString("utf8", 0, 7) === "#EXTM3U") return true;
   return false;
-}
-
-export function sha256Buffer(buf) {
-  return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
 export { sha256FileSync };
@@ -139,29 +195,8 @@ function abortError() {
   return err;
 }
 
-async function fetchBuffer(requestContext, url, signal) {
-  const res = await requestContext.get(url, {
-    headers: {
-      Accept: '*/*',
-      Referer: "https://x.com/"
-    },
-    signal
-  });
-  if (!res.ok()) {
-    const err = new Error(`HTTP ${res.status()} for ${url}`);
-    err.status = res.status();
-    err.retryAfter = res.headers()["retry-after"];
-    throw err;
-  }
-  const body = Buffer.from(await res.body());
-  const contentType = (res.headers()["content-type"] || "").split(";")[0].trim();
-  if (looksLikeHtml(body)) {
-    throw new Error(`HTML response for ${url}`);
-  }
-  if (!looksLikeMedia(body) && !/^(image|video|application\/octet-stream|application\/vnd\.apple\.mpegurl)/i.test(contentType)) {
-    throw new Error(`Not media (${contentType || "unknown"}) for ${url}`);
-  }
-  return { body, contentType, url: typeof res.url === "function" ? res.url() : url };
+async function fetchToFile(requestContext, url, signal, file) {
+  return requestContext.save(url, { headers: { Accept: "*/*", Referer: "https://x.com/" }, signal }, file);
 }
 
 const TRANSIENT_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -169,7 +204,7 @@ const TRANSIENT_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 function isTransient(err) {
   if (err?.status) return TRANSIENT_STATUS.has(err.status);
   const msg = String(err?.message || err);
-  if (/^(HTML response|Not media)/.test(msg)) return false;
+  if (/^(HTML response|Not media|Empty response)/.test(msg)) return false;
   return true;
 }
 
@@ -200,11 +235,11 @@ function sleep(ms, signal) {
   });
 }
 
-async function fetchWithRetry(requestContext, url, signal, retries) {
+async function fetchWithRetry(requestContext, url, signal, retries, file) {
   for (let attempt = 0; ; attempt++) {
     if (signal?.aborted) throw abortError();
     try {
-      return await fetchBuffer(requestContext, url, signal);
+      return await fetchToFile(requestContext, url, signal, file);
     } catch (e) {
       if (signal?.aborted) throw abortError();
       if (attempt >= retries || !isTransient(e)) throw e;
@@ -213,17 +248,18 @@ async function fetchWithRetry(requestContext, url, signal, retries) {
   }
 }
 
-async function fetchItem(requestContext, item, signal, retries = 0) {
+async function fetchItem(requestContext, item, signal, retries, file) {
   const urls =
     item.kind === "image" && !item.gif ? imageFetchCandidates(item.url) : [item.url];
   let lastErr = null;
   for (const u of urls) {
     if (signal?.aborted) throw abortError();
     try {
-      return await fetchWithRetry(requestContext, u, signal, retries);
+      return await fetchWithRetry(requestContext, u, signal, retries, file);
     } catch (e) {
       if (signal?.aborted) throw abortError();
       lastErr = e;
+      if (isTransient(e)) throw e;
     }
   }
   throw lastErr || new Error(`Failed to fetch ${item.url}`);
@@ -290,33 +326,45 @@ function runFfmpeg(args) {
   });
 }
 
-async function mp4BufferToGif(buf) {
-  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "xaver-gif-"));
-  const input = path.join(dir, "in.mp4");
-  const output = path.join(dir, "out.gif");
+async function mp4FileToGif(input) {
+  const output = `${input}.gif`;
   try {
-    await fs.promises.writeFile(input, buf);
     await runFfmpeg([
       "-y",
+      "-f",
+      "mp4",
       "-i",
       input,
       "-an",
       "-vf",
-      "fps=12,scale=480:-1:flags=lanczos:force_original_aspect_ratio=decrease,split[s0][s1];[s0]palettegen=max_colors=192[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5",
+      "fps=12,scale='min(480,iw)':-2:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=192[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5",
       "-loop",
       "0",
+      "-f",
+      "gif",
       output
     ]);
-    const out = await fs.promises.readFile(output);
-    if (out.length < 32 || out[0] !== 0x47 || out[1] !== 0x49) {
-      throw new Error("gif encode failed");
-    }
-    return out;
-  } finally {
+    const fh = await fs.promises.open(output, "r");
+    const head = Buffer.alloc(6);
+    let size = 0;
     try {
-      fs.rmSync(dir, { recursive: true, force: true });
-    } catch {}
+      size = (await fh.stat()).size;
+      await fh.read(head, 0, 6, 0);
+    } finally {
+      await fh.close();
+    }
+    if (size < 32 || head[0] !== 0x47 || head[1] !== 0x49) throw new Error("gif encode failed");
+    await fs.promises.rename(output, input);
+    return { sha256: await sha256File(input), bytes: size };
+  } finally {
+    await fs.promises.rm(output, { force: true }).catch(() => {});
   }
+}
+
+async function sha256File(file) {
+  const hash = crypto.createHash("sha256");
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  return hash.digest("hex");
 }
 
 export async function downloadAll(requestContext, items, outDir, options = {}) {
@@ -351,6 +399,11 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
   const retries = Math.max(0, Math.min(6, Math.floor(Number(options.retries) || 0)));
   let cursor = 0;
   let done = 0;
+  const reportExisting = (known, item) => {
+    if (!onSaved || !known?.path) return;
+    const rel = path.relative(outDir, known.path).replace(/\\/g, "/");
+    onSaved({ path: known.path, rel, bytes: known.bytes || 0, sha256: known.sha256, existing: true }, item);
+  };
   const tick = () => {
     done++;
     if (onProgress) onProgress(done, list.length, saved.length, errors.length, skipped.length);
@@ -365,17 +418,19 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
       if (prev) {
         skipped.push({ url: item.url, sha256: prev.sha256, path: prev.path, reason: "url" });
         db?.linkKeys(itemIndexKeys(item), prev.sha256);
+        reportExisting(prev, item);
         tick();
         continue;
       }
 
+      const part = path.join(outDir, `.xaver-${process.pid}-${i}-${crypto.randomBytes(4).toString("hex")}.part`);
       try {
-        let { body, contentType, url: usedUrl } = await fetchItem(requestContext, item, signal, retries);
+        let { contentType, url: usedUrl, sha256: hash, bytes, head } = await fetchItem(requestContext, item, signal, retries, part);
         let ext = extFor(item, contentType);
 
-        if (item.gif && (looksLikeMp4Box(body) || /mp4|octet-stream/i.test(contentType))) {
+        if (item.gif && (looksLikeMp4Box(head) || /mp4|octet-stream/i.test(contentType))) {
           try {
-            body = await mp4BufferToGif(body);
+            ({ sha256: hash, bytes } = await mp4FileToGif(part));
             ext = ".gif";
             contentType = "image/gif";
           } catch {
@@ -383,12 +438,12 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
           }
         }
 
-        const hash = sha256Buffer(body);
-
         const known = dedupe ? runHashes.get(hash) || (db ? db.knownFile(hash, { remember }) : null) : null;
         if (known) {
+          await fs.promises.rm(part, { force: true }).catch(() => {});
           db?.linkKeys(itemIndexKeys(item, usedUrl), hash);
           skipped.push({ url: item.url, sha256: hash, path: known.path, reason: "sha256" });
+          reportExisting({ ...known, sha256: hash }, item);
           tick();
           continue;
         }
@@ -420,15 +475,19 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
         }
         usedNames.add(folder + name);
         const dest = path.join(folder, name);
-        const tmpDest = `${dest}.part`;
-        fs.writeFileSync(tmpDest, body);
-        fs.renameSync(tmpDest, dest);
-
         runHashes.set(hash, { path: dest });
+        try {
+          await fs.promises.rename(part, dest);
+        } catch (e) {
+          runHashes.delete(hash);
+          usedNames.delete(folder + name);
+          throw e;
+        }
+
         db?.recordFile({
           sha256: hash,
           path: dest,
-          bytes: body.length,
+          bytes,
           kind: item.kind === "image" ? "image" : item.gif ? "gif" : "video",
           profile: options.profile || null,
           sourceUrl: usedUrl || item.url,
@@ -440,13 +499,14 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
         const entry = {
           path: dest,
           rel: path.relative(outDir, dest).replace(/\\/g, "/"),
-          bytes: body.length,
+          bytes,
           sha256: hash
         };
         saved.push(entry);
         if (onSaved) onSaved(entry, item);
         tick();
       } catch (e) {
+        await fs.promises.rm(part, { force: true }).catch(() => {});
         if (signal?.aborted || e?.name === "AbortError") throw abortError();
         errors.push({ url: item.url, err: String(e?.message || e), status: Number(e?.status) || 0, item });
         tick();
@@ -461,9 +521,6 @@ export async function downloadAll(requestContext, items, outDir, options = {}) {
     const failed = results.find((r) => r.status === "rejected");
     if (failed) throw failed.reason;
   } finally {
-    try {
-      db?.flushNow();
-    } catch {}
     try {
       const file = path.join(outDir, "hashes.json");
       const fresh = saved.map((s) => ({ sha256: s.sha256, file: s.rel, bytes: s.bytes }));
@@ -529,6 +586,3 @@ export function labelFromPath(profilePath) {
   return sanitizeName(parts[0] || "media", 40);
 }
 
-export async function writeBytesStream(filePath, buffer) {
-  await pipeline(Readable.from(buffer), fs.createWriteStream(filePath));
-}

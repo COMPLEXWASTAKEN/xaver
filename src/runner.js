@@ -270,6 +270,23 @@ export async function runDownloadJob(options, hooks = {}) {
       ? path.join(outRoot, folderName(options.singleFolderName))
       : path.join(outRoot, layout === "profile" ? label : `${label}_${stamp}`);
 
+  const byName = new Map();
+  for (const c of cookies) if (c.name && c.value) byName.set(c.name, c.value);
+  const cookieHeader = [...byName].map(([k, v]) => `${k}=${v}`).join("; ");
+
+  const req = createHttpContext({
+    extraHTTPHeaders: {
+      Accept: "*/*",
+      Referer: "https://x.com/",
+      "User-Agent":
+        options.userAgent ||
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    },
+    cookieHeader,
+    timeout: options.requestTimeoutMs || 120000,
+    proxyUrl: options.proxyUrl || ""
+  });
+
   const dedupe = options.sha256Dedupe !== false;
   let db = null;
   try {
@@ -279,10 +296,20 @@ export async function runDownloadJob(options, hooks = {}) {
   }
   if (dedupe && db) {
     onProgress({ phase: "downloading", message: "Indexing output folder…", downloadDone: 0, downloadTotal: items.length });
-    const seeded = db.seedFromDisk(outRoot, { signal });
+    const seeded = await db.seedFromDisk(outRoot, {
+      signal,
+      onProgress: (done, total) => {
+        if (total > 0) onProgress({ phase: "downloading", message: `Indexing output folder… ${done}/${total}`, downloadDone: 0, downloadTotal: items.length });
+      }
+    });
     if (seeded.added > 0) onLog(`Indexed ${seeded.added} existing file${seeded.added === 1 ? "" : "s"}`);
   }
-  throwIfAborted(signal);
+  try {
+    throwIfAborted(signal);
+  } catch (e) {
+    await req.dispose().catch(() => {});
+    throw e;
+  }
   const profile = labelFromPath(options.profilePath || options.label || "media");
   const runId = db ? db.startRun({ profile, runDir, outRoot, requested: items.length }) : null;
   let runStatus = "failed";
@@ -295,24 +322,6 @@ export async function runDownloadJob(options, hooks = {}) {
     downloadDone: 0,
     downloadTotal: items.length,
     mediaCount: items.length
-  });
-
-  const cookieHeader = cookies
-    .filter((c) => c.name && c.value)
-    .map((c) => `${c.name}=${c.value}`)
-    .join("; ");
-
-  const req = createHttpContext({
-    extraHTTPHeaders: {
-      Accept: "*/*",
-      Referer: "https://x.com/",
-      "User-Agent":
-        options.userAgent ||
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      ...(cookieHeader ? { Cookie: cookieHeader } : {})
-    },
-    timeout: options.requestTimeoutMs || 120000,
-    proxyUrl: options.proxyUrl || ""
   });
 
   try {
@@ -392,7 +401,9 @@ function folderName(raw) {
 
 function sanitizeLabel(raw) {
   try {
-    return labelFromPath(String(raw));
+    const name = labelFromPath(String(raw)).replace(/[.\s]+$/g, "");
+    if (!name) return "media";
+    return /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(name) ? `${name}_` : name;
   } catch {
     return "media";
   }

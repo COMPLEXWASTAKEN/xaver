@@ -12,7 +12,7 @@ export const LEGACY_MIGRATED_SUFFIX = ".migrated";
 const SCHEMA_VERSION = 1;
 const MEDIA_EXT = /\.(mp4|mov|webm|m4v|jpe?g|png|webp|gif)$/i;
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v)$/i;
-const FLUSH_DELAY_MS = 750;
+const FLUSH_DELAY_MS = 4000;
 const ENC_MAGIC = Buffer.from("PMSDB1", "latin1");
 const IV_LEN = 12;
 const TAG_LEN = 16;
@@ -96,6 +96,12 @@ CREATE TABLE IF NOT EXISTS runs (
   failed INTEGER NOT NULL DEFAULT 0,
   bytes INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS seen_paths (
+  path TEXT PRIMARY KEY,
+  sha256 TEXT NOT NULL,
+  bytes INTEGER NOT NULL DEFAULT 0,
+  mtime INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS imports (
   source TEXT PRIMARY KEY,
   imported_at INTEGER NOT NULL,
@@ -133,6 +139,12 @@ export function defaultDbPath() {
   }
   const legacy = path.join(base, "Profile Media Saver", DB_FILE_NAME);
   return fs.existsSync(legacy) ? legacy : path.join(base, "Xaver", DB_FILE_NAME);
+}
+
+export async function sha256File(filePath) {
+  const hash = crypto.createHash("sha256");
+  for await (const chunk of fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 })) hash.update(chunk);
+  return hash.digest("hex");
 }
 
 export function sha256FileSync(filePath) {
@@ -401,19 +413,22 @@ class MediaDb {
     );
   }
 
-  seedFromDisk(outRoot, { signal, onProgress } = {}) {
+  async seedFromDisk(outRoot, { signal, onProgress } = {}) {
     if (!outRoot || !fs.existsSync(outRoot)) return { scanned: 0, added: 0 };
     const known = new Set();
     for (const r of this.all("SELECT path FROM files")) known.add(pathKey(r.path));
+    const seen = new Map();
+    for (const r of this.all("SELECT path, sha256, bytes, mtime FROM seen_paths")) seen.set(r.path, { stamp: `${r.bytes}:${r.mtime}`, sha256: r.sha256 });
     let scanned = 0;
     let added = 0;
     const stack = [outRoot];
     const pending = [];
     while (stack.length) {
+      if (signal?.aborted) break;
       const dir = stack.pop();
       let entries;
       try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
       } catch {
         continue;
       }
@@ -435,19 +450,33 @@ class MediaDb {
       if (signal?.aborted) break;
       i++;
       try {
-        const hash = sha256FileSync(full);
+        const st = await fs.promises.stat(full);
+        const key = pathKey(full);
+        const stamp = `${st.size}:${Math.floor(st.mtimeMs)}`;
+        const prior = seen.get(key);
+        if (prior?.stamp === stamp) {
+          const orig = this.get("SELECT path FROM files WHERE sha256 = ?", [prior.sha256]);
+          if (orig?.path && fs.existsSync(orig.path)) continue;
+        }
+        const hash = await sha256File(full);
+        if (signal?.aborted) break;
         const row = this.get("SELECT path FROM files WHERE sha256 = ?", [hash]);
-        if (row && row.path && fs.existsSync(row.path)) continue;
-        const bytes = fs.statSync(full).size;
+        if (row && row.path && pathKey(row.path) !== key && fs.existsSync(row.path)) {
+          this.run(
+            "INSERT INTO seen_paths(path, sha256, bytes, mtime) VALUES(?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET sha256 = excluded.sha256, bytes = excluded.bytes, mtime = excluded.mtime",
+            [key, hash, st.size, Math.floor(st.mtimeMs)]
+          );
+          continue;
+        }
         this.run(
           `INSERT INTO files(sha256, path, bytes, kind, origin, created_at, verified_at, missing)
            VALUES(?, ?, ?, ?, 'disk', ?, ?, 0)
            ON CONFLICT(sha256) DO UPDATE SET path = excluded.path, bytes = excluded.bytes, verified_at = excluded.verified_at, missing = 0`,
-          [hash, path.resolve(full), bytes, kindFromName(full), now, now]
+          [hash, path.resolve(full), st.size, kindFromName(full), now, now]
         );
         added++;
       } catch {}
-      if (onProgress && i % 25 === 0) onProgress(i, pending.length);
+      if (onProgress && i % 10 === 0) onProgress(i, pending.length);
     }
     if (onProgress) onProgress(pending.length, pending.length);
     this.setMeta("last_rescan_at", String(Date.now()));

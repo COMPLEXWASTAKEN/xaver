@@ -1,3 +1,10 @@
+function imageFormat(u) {
+  const q = String(u.searchParams.get("format") || "").toLowerCase();
+  const ext = (u.pathname.match(/\.(png|webp|jpe?g)$/i)?.[1] || "").toLowerCase().replace("jpeg", "jpg");
+  const fmt = q || ext || "jpg";
+  return fmt === "png" || fmt === "webp" ? fmt : "jpg";
+}
+
 export function upgradeImageUrl(src) {
   try {
     if (!/^https:\/\/pbs\.twimg\.com\//i.test(src)) return src;
@@ -9,8 +16,8 @@ export function upgradeImageUrl(src) {
     if (!m) return src;
     const id = m[2];
     const out = new URL(`https://pbs.twimg.com${m[1]}${id}`);
-    const fmt = u.searchParams.get("format") || "jpg";
-    out.searchParams.set("format", fmt === "png" || fmt === "webp" ? fmt : "jpg");
+    const fmt = imageFormat(u);
+    out.searchParams.set("format", fmt);
     out.searchParams.set("name", "large");
     return out.href;
   } catch {
@@ -49,10 +56,13 @@ export function imageFetchCandidates(url) {
     const m = u.pathname.match(/^(.*\/media\/)([^/.]+)(?:\.[a-z0-9]+)?$/i);
     if (!m) return list;
     const base = `https://pbs.twimg.com${m[1]}${m[2]}`;
-    const fmt = u.searchParams.get("format") || "jpg";
-    for (const name of ["large", "orig", "4096x4096", "medium"]) {
+    const fmt = imageFormat(u);
+    list.length = 0;
+    for (const name of ["orig", "4096x4096", "large"]) {
       push(`${base}?format=${fmt}&name=${name}`);
     }
+    push(url);
+    push(`${base}?format=${fmt}&name=medium`);
     if (fmt !== "jpg") push(`${base}?format=jpg&name=large`);
   } catch {}
   return list;
@@ -194,9 +204,9 @@ function videoGroupKey(url) {
   try {
     const u = new URL(url);
     const m = u.pathname.match(
-      /\/(?:ext_tw_video|amplify_video|tweet_video|amplify_video_thumb|ext_tw_video_thumb)\/(\d+)/i
+      /\/(?:ext_tw_video|amplify_video|amplify_video_thumb|ext_tw_video_thumb)\/(\d+)(?:\/|$)|\/tweet_video(?:_thumb)?\/([A-Za-z0-9_-]+)/i
     );
-    if (m) return m[1];
+    if (m) return m[1] || m[2];
     return u.pathname.replace(/\/vid\/[^/]+\/[^/]+$/i, "");
   } catch {
     return url;
@@ -349,6 +359,7 @@ function walkMediaNodes(root, out, depth, blocked) {
       for (let i = 0; i < node.length; i++) stack.push(node[i]);
       continue;
     }
+    if (node.promotedMetadata || (typeof node.entryId === "string" && /^promoted-/i.test(node.entryId))) continue;
 
     const isEntity =
       typeof node.type === "string" &&
@@ -368,6 +379,9 @@ function walkMediaNodes(root, out, depth, blocked) {
         for (let j = 0; j < media.length; j++) {
           if (availabilityOf(media[j])) for (const k of blockKeysFor(media[j])) blocked.add(k);
           else ingestEntity(media[j], out);
+        }
+        for (const list of [legacy.extended_entities?.media, legacy.entities?.media]) {
+          if (Array.isArray(list)) for (const m of list) if (m && typeof m === "object") seen.add(m);
         }
       }
     }
