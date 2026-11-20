@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MediaItem } from "../../../electron/shared/types";
-import { playSrc, proxyUrl, tilePreviewSrc } from "../../lib/mediaUrl";
+import { fullImageSrc, playSrc, proxyUrl, tilePreviewSrc } from "../../lib/mediaUrl";
 import { VideoPlayer } from "./VideoPlayer";
+
+const STRIP_SPAN = 40;
+
+export function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === "TEXTAREA") return true;
+  if (el.tagName !== "INPUT") return false;
+  const type = (el as HTMLInputElement).type;
+  return type !== "range" && type !== "checkbox" && type !== "radio" && type !== "button";
+}
 
 export function MediaViewer({
   items,
@@ -22,7 +33,7 @@ export function MediaViewer({
   busy?: boolean;
   onClose: () => void;
   onChange: (item: MediaItem) => void;
-  onToggleSelect: (url: string) => void;
+  onToggleSelect?: (url: string) => void;
   onDownload: (url: string) => void;
   downloadLabel?: string;
   note?: (item: MediaItem) => ReactNode;
@@ -33,6 +44,15 @@ export function MediaViewer({
   const [broken, setBroken] = useState<Set<string>>(() => new Set());
   const markBroken = (url: string) => setBroken((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
   const stripRef = useRef<HTMLDivElement | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    shellRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (before && document.contains(before)) before.focus({ preventScroll: true });
+    };
+  }, []);
 
   const index = useMemo(() => items.findIndex((x) => x.url === current.url), [items, current.url]);
   const isVid = current.kind === "video" || Boolean(current.gif);
@@ -75,31 +95,40 @@ export function MediaViewer({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (isTypingTarget(e.target) || (e.target as HTMLElement)?.tagName === "SELECT") return;
+      if (e.ctrlKey || e.metaKey) return;
       if (e.key === "ArrowRight" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        if (index >= 0) onChange(items[(index + 1) % items.length]);
+        if (index >= 0 && items.length) onChange(items[(index + 1) % items.length]);
       }
       if (e.key === "ArrowLeft" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        if (index >= 0) onChange(items[(index - 1 + items.length) % items.length]);
+        if (index >= 0 && items.length) onChange(items[(index - 1 + items.length) % items.length]);
       }
-      if (e.key === "s") onToggleSelect(current.url);
-      if (e.key === "d") onDownload(current.url);
+      if (e.repeat || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "s" && onToggleSelect) onToggleSelect(current.url);
+      if (k === "d" && !busy) onDownload(current.url);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, index, items, onChange, onClose, onDownload, onToggleSelect]);
+  }, [current, index, items, busy, onChange, onClose, onDownload, onToggleSelect]);
+
+  const stripStart = Math.max(0, index - STRIP_SPAN);
+  const strip = useMemo(
+    () => (index >= 0 ? items.slice(stripStart, index + STRIP_SPAN + 1) : items.slice(0, STRIP_SPAN * 2)),
+    [items, index, stripStart]
+  );
 
   useEffect(() => {
-    const root = stripRef.current;
-    if (!root) return;
-    const el = Array.from(root.querySelectorAll<HTMLElement>("[data-url]")).find(
-      (node) => node.dataset.url === current.url
-    );
-    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    stripRef.current
+      ?.querySelector<HTMLElement>(".mv-thumb.active")
+      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [current.url]);
 
   const go = (dir: -1 | 1) => {
@@ -111,20 +140,34 @@ export function MediaViewer({
 
   return (
     <div className="mv" onClick={onClose}>
-      <div className="mv-shell" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="mv-shell"
+        ref={shellRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${label} viewer`}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className="mv-top">
           <div className="mv-meta">
             <span className="mv-kind">{label}</span>
             <span className="mono muted">
               {index >= 0 ? `${index + 1} / ${items.length}` : "—"}
             </span>
-            {status ? <span className="muted">{status}</span> : null}
+            {status ? (
+              <span className="muted mv-status" title={status}>
+                {status}
+              </span>
+            ) : null}
             {note ? note(current) : null}
           </div>
           <div className="mv-actions">
-            <button type="button" className="btn sm" onClick={() => onToggleSelect(current.url)}>
-              {selected.has(current.url) ? "Deselect" : "Select"}
-            </button>
+            {onToggleSelect ? (
+              <button type="button" className="btn sm" onClick={() => onToggleSelect(current.url)}>
+                {selected.has(current.url) ? "Deselect" : "Select"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn primary sm"
@@ -157,8 +200,14 @@ export function MediaViewer({
                 </div>
               )
             ) : (
-              !broken.has(current.url) && tilePreviewSrc(current) ? (
-                <img className="mv-image" src={tilePreviewSrc(current)} alt="" onError={() => markBroken(current.url)} />
+              !broken.has(current.url) && fullImageSrc(current) ? (
+                <img
+                  className="mv-image"
+                  src={fullImageSrc(current)}
+                  alt=""
+                  decoding="async"
+                  onError={() => markBroken(current.url)}
+                />
               ) : (
                 <div className="mv-loading">
                   <span className="muted">Preview not available</span>
@@ -170,7 +219,8 @@ export function MediaViewer({
         </div>
 
         <div className="mv-strip" ref={stripRef}>
-          {items.map((it, i) => {
+          {strip.map((it, n) => {
+            const i = stripStart + n;
             const src = tilePreviewSrc(it);
             const active = it.url === current.url;
             const vid = it.kind === "video" || Boolean(it.gif);
@@ -184,7 +234,7 @@ export function MediaViewer({
                 title={`${i + 1}`}
               >
                 {src && !broken.has(it.url) ? (
-                  <img src={src} alt="" loading="lazy" onError={() => markBroken(it.url)} />
+                  <img src={src} alt="" loading="lazy" decoding="async" onError={() => markBroken(it.url)} />
                 ) : (
                   <div className="tile-fallback" />
                 )}

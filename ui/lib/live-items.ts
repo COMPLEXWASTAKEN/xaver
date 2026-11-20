@@ -1,7 +1,5 @@
 import type { MediaItem } from "../../electron/shared/types";
 
-const LIMIT = 4000;
-
 function itemKey(it: MediaItem): string {
   return it.id || it.url;
 }
@@ -46,5 +44,5 @@ export function upsertItems(prev: MediaItem[], batch: MediaItem[]): MediaItem[] 
     index.set(it.url, next.length);
     next.push(it);
   }
-  return next.length > LIMIT ? next.slice(-LIMIT) : next;
+  return next;
 }

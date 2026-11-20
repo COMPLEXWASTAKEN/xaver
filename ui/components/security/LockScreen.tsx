@@ -47,7 +47,11 @@ export function LockScreen({
 
   useEffect(() => {
     if (lockoutUntil <= Date.now()) return;
-    const t = setInterval(() => setNow(Date.now()), 250);
+    const t = setInterval(() => {
+      const at = Date.now();
+      setNow(at);
+      if (at >= lockoutUntil) clearInterval(t);
+    }, 250);
     return () => clearInterval(t);
   }, [lockoutUntil]);
 

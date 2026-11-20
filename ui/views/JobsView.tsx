@@ -100,26 +100,28 @@ export function JobsView({
                   <td className="muted">
                     {j.finishedAt ? new Date(j.finishedAt).toLocaleString() : "—"}
                   </td>
-                  <td className="row">
-                    {j.errors > 0 && failedCount > 0 && onFailed ? (
-                      <button type="button" className="btn sm" onClick={onFailed}>
-                        Retry failed
-                      </button>
-                    ) : null}
-                    {j.runDir ? (
-                      <button type="button" className="btn sm" onClick={() => onOpen(j.runDir!)}>
-                        Folder
-                      </button>
-                    ) : null}
-                    {j.zipPath ? (
-                      <button
-                        type="button"
-                        className="btn sm"
-                        onClick={() => void window.xaver.library.reveal(j.zipPath!)}
-                      >
-                        ZIP
-                      </button>
-                    ) : null}
+                  <td>
+                    <div className="row">
+                      {j.errors > 0 && failedCount > 0 && onFailed ? (
+                        <button type="button" className="btn sm" onClick={onFailed}>
+                          Retry failed
+                        </button>
+                      ) : null}
+                      {j.runDir ? (
+                        <button type="button" className="btn sm" onClick={() => onOpen(j.runDir!)}>
+                          Folder
+                        </button>
+                      ) : null}
+                      {j.zipPath ? (
+                        <button
+                          type="button"
+                          className="btn sm"
+                          onClick={() => void window.xaver.library.reveal(j.zipPath!)}
+                        >
+                          ZIP
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

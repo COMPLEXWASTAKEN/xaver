@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MediaItem } from "../../electron/shared/types";
 import { GalleryBoard, type GalleryFilter } from "../components/gallery/GalleryBoard";
 import { MediaViewer } from "../components/gallery/MediaViewer";
@@ -36,10 +36,11 @@ export function LibraryView({ liveItems }: { liveItems: MediaItem[] }) {
   const [runId, setRunId] = useState<string>("");
   const [files, setFiles] = useState<FileItem[]>([]);
   const [filter, setFilter] = useState<GalleryFilter>("all");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<MediaItem | null>(null);
   const [mode, setMode] = useState<"runs" | "live">("runs");
-  const [selectMode, setSelectMode] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const viewList = useRef<MediaItem[]>([]);
+  const none = useMemo(() => new Set<string>(), []);
 
   const refresh = async () => {
     const list = await window.xaver.library.listRuns();
@@ -53,29 +54,21 @@ export function LibraryView({ liveItems }: { liveItems: MediaItem[] }) {
 
   useEffect(() => {
     if (!runId || mode !== "runs") return;
-    void window.xaver.library.listItems(runId).then(setFiles);
-    setSelected(new Set());
+    let alive = true;
+    setLoading(true);
+    void window.xaver.library
+      .listItems(runId)
+      .then((list) => alive && setFiles(list))
+      .catch(() => alive && setFiles([]))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
   }, [runId, mode]);
 
   const runMedia = useMemo(() => files.map(fileToMedia), [files]);
   const boardItems = mode === "live" ? liveItems : runMedia;
 
-  const viewerItems = useMemo(() => {
-    return boardItems.filter((it) => {
-      if (filter === "image" && it.kind === "video" && !it.gif) return false;
-      if (filter === "video" && it.kind !== "video") return false;
-      return true;
-    });
-  }, [boardItems, filter]);
-
-  const toggle = (url: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(url)) next.delete(url);
-      else next.add(url);
-      return next;
-    });
-  };
 
   const activeRun = runs.find((r) => r.id === runId);
 
@@ -104,13 +97,6 @@ export function LibraryView({ liveItems }: { liveItems: MediaItem[] }) {
         ) : null}
 
         <span className="gb-spacer" />
-        <button
-          type="button"
-          className={`btn sm ${selectMode ? "primary" : ""}`}
-          onClick={() => setSelectMode((v) => !v)}
-        >
-          {selectMode ? "Selecting" : "Select"}
-        </button>
         <button type="button" className="btn sm" onClick={() => void refresh()}>
           Refresh
         </button>
@@ -123,31 +109,31 @@ export function LibraryView({ liveItems }: { liveItems: MediaItem[] }) {
 
       <GalleryBoard
         items={boardItems}
-        selected={selected}
-        selectMode={selectMode}
+        selected={none}
+        selectMode={false}
+        selectable={false}
+        scanning={loading}
+        emptyText={mode === "live" ? "Nothing from the current scan yet." : runs.length ? "No media in this folder." : "Nothing saved yet. Scan a profile and download to see it here."}
         filter={filter}
         onFilter={setFilter}
-        onOpen={setPreview}
-        onToggle={toggle}
-        onSelectPage={(urls) =>
-          setSelected((prev) => {
-            const next = new Set(prev);
-            for (const u of urls) next.add(u);
-            return next;
-          })
-        }
-        onClear={() => setSelected(new Set())}
+        onOpen={(it, visible) => {
+          viewList.current = visible;
+          setPreview(it);
+        }}
+        onToggle={() => {}}
+        onSelectPage={() => {}}
+        onClear={() => {}}
       />
 
       {preview ? (
         <MediaViewer
-          items={viewerItems}
+          items={viewList.current}
           current={preview}
-          selected={selected}
+          selected={none}
           onClose={() => setPreview(null)}
           onChange={setPreview}
-          onToggleSelect={toggle}
           downloadLabel="Reveal"
+          hint="← → browse · Space play/pause · D reveal in folder · F fullscreen · Esc close"
           onDownload={(url) => {
             const item = boardItems.find((x) => x.url === url);
             if (item?.localPath) void window.xaver.library.reveal(item.localPath);

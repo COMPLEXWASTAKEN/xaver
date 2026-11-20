@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { isTypingTarget } from "./MediaViewer";
+
+const prefs = { volume: 0.9, muted: false, rate: 1 };
 
 function fmt(t: number): string {
   if (!Number.isFinite(t) || t < 0) return "0:00";
@@ -20,9 +23,9 @@ export function VideoPlayer({
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hideTimer = useRef<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(0.9);
-  const [rate, setRate] = useState(1);
+  const [muted, setMuted] = useState(prefs.muted);
+  const [volume, setVolume] = useState(prefs.volume);
+  const [rate, setRate] = useState(prefs.rate);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -45,6 +48,9 @@ export function VideoPlayer({
     v.volume = volume;
     v.muted = muted;
     v.playbackRate = rate;
+    prefs.volume = volume;
+    prefs.muted = muted;
+    prefs.rate = rate;
   }, [volume, muted, rate]);
 
   useEffect(() => {
@@ -71,7 +77,7 @@ export function VideoPlayer({
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) void v.play();
+    if (v.paused) v.play().catch(() => {});
     else v.pause();
     bumpChrome();
   };
@@ -92,37 +98,40 @@ export function VideoPlayer({
     bumpChrome();
   };
 
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e: KeyboardEvent) => {
+    if (isTypingTarget(e.target) || (e.target as HTMLElement)?.tagName === "SELECT") return;
+    if (e.ctrlKey || e.metaKey) return;
+    const v = videoRef.current;
+    if (!v) return;
+    if (e.key === " " || e.key === "k") {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === "ArrowRight" && (e.shiftKey || e.altKey)) {
+      e.preventDefault();
+      v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
+    } else if (e.key === "ArrowLeft" && (e.shiftKey || e.altKey)) {
+      e.preventDefault();
+      v.currentTime = Math.max(0, v.currentTime - 5);
+    } else if (e.key.toLowerCase() === "m" && !e.repeat) {
+      setMuted((m) => !m);
+    } else if (e.key.toLowerCase() === "f" && !e.repeat) {
+      void toggleFs();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setVolume((x) => Math.min(1, x + 0.05));
+      setMuted(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setVolume((x) => Math.max(0, x - 0.05));
+    }
+  };
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      const v = videoRef.current;
-      if (!v) return;
-      if (e.key === " " || e.key === "k") {
-        e.preventDefault();
-        togglePlay();
-      } else if (e.key === "ArrowRight" && (e.shiftKey || e.altKey)) {
-        e.preventDefault();
-        v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
-      } else if (e.key === "ArrowLeft" && (e.shiftKey || e.altKey)) {
-        e.preventDefault();
-        v.currentTime = Math.max(0, v.currentTime - 5);
-      } else if (e.key === "m") {
-        setMuted((m) => !m);
-      } else if (e.key === "f") {
-        void toggleFs();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setVolume((x) => Math.min(1, x + 0.05));
-        setMuted(false);
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setVolume((x) => Math.max(0, x - 0.05));
-      }
-    };
+    const onKey = (e: KeyboardEvent) => keyRef.current(e);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, []);
 
   const progress = duration > 0 ? (current / duration) * 100 : 0;
   const bufPct = duration > 0 ? (buffered / duration) * 100 : 0;

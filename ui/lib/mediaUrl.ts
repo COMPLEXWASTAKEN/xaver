@@ -8,25 +8,27 @@ export function proxyUrl(url: string): string {
   return `xaver-proxy://x/?u=${encodeURIComponent(url)}`;
 }
 
+function localSrc(p: string): string {
+  return `xaver-media://local/${encodeURIComponent(p)}`;
+}
+
+function thumbSrc(p: string): string {
+  return `xaver-media://thumb/${encodeURIComponent(p)}`;
+}
+
 export function tilePreviewSrc(it: MediaItem): string {
-  if (it.localPath) {
-    if (it.kind === "image" && !it.gif) {
-      return `xaver-media://local/${encodeURIComponent(it.localPath)}`;
-    }
-    if (it.thumb) return proxyUrl(it.thumb);
-    if (it.kind === "video" || it.gif) {
-      return `xaver-media://local/${encodeURIComponent(it.localPath)}`;
-    }
-    return `xaver-media://local/${encodeURIComponent(it.localPath)}`;
-  }
-  if (it.kind === "video" || it.gif) {
-    if (it.thumb) return proxyUrl(it.thumb);
-    return "";
-  }
-  return proxyUrl(it.url) || it.url;
+  const isVid = it.kind === "video" || Boolean(it.gif);
+  if (it.localPath) return thumbSrc(it.localPath);
+  if (isVid) return it.thumb ? proxyUrl(it.thumb) : "";
+  return proxyUrl(it.url);
+}
+
+export function fullImageSrc(it: MediaItem): string {
+  if (it.localPath) return localSrc(it.localPath);
+  return proxyUrl(it.url);
 }
 
 export function playSrc(it: MediaItem): string {
-  if (it.localPath) return `xaver-media://local/${encodeURIComponent(it.localPath)}`;
+  if (it.localPath) return localSrc(it.localPath);
   return it.url;
 }

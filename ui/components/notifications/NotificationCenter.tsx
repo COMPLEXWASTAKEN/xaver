@@ -20,6 +20,8 @@ export function NotificationCenter({
   const [now, setNow] = useState(Date.now());
   const [leaving, setLeaving] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
@@ -28,9 +30,9 @@ export function NotificationCenter({
 
   useEffect(() => {
     if (!leaving) return;
-    const t = setTimeout(onClose, 200);
+    const t = setTimeout(() => closeRef.current(), 200);
     return () => clearTimeout(t);
-  }, [leaving, onClose]);
+  }, [leaving]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -126,6 +126,7 @@
 
 .notice-panel.leaving {
   animation: panelOut 200ms ease both;
+  pointer-events: none;
 }
 
 @keyframes panelIn {

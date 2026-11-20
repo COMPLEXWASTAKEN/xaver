@@ -68,7 +68,8 @@ export function RunView({
   const [advanced, setAdvanced] = useState(false);
   const [filter, setFilter] = useState<GalleryFilter>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [preview, setPreview] = useState<MediaItem | null>(null);
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const viewList = useRef<MediaItem[]>([]);
   const [busyDl, setBusyDl] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [cleared, setCleared] = useState(false);
@@ -82,6 +83,15 @@ export function RunView({
   const urlTab = tabFromInput(target);
 
   useEffect(() => {
+    if (!askOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAskOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [askOpen]);
+
+  useEffect(() => {
     const tab = tabFromInput(target);
     if (tab) {
       urlLocked.current = true;
@@ -92,13 +102,16 @@ export function RunView({
     urlLocked.current = false;
   }, [target]);
 
+  const preview = useMemo(
+    () => (previewKey ? items.find((it) => (it.id || it.url) === previewKey) || null : null),
+    [items, previewKey]
+  );
+
   const viewerItems = useMemo(() => {
-    return items.filter((it) => {
-      if (filter === "image" && it.kind === "video" && !it.gif) return false;
-      if (filter === "video" && it.kind !== "video") return false;
-      return true;
-    });
-  }, [items, filter]);
+    if (!preview) return [];
+    const fresh = new Map(items.map((it) => [it.id || it.url, it]));
+    return viewList.current.map((it) => fresh.get(it.id || it.url)).filter((it): it is MediaItem => Boolean(it));
+  }, [items, preview]);
 
   useEffect(() => {
     const prevUrls = urlById.current;
@@ -180,7 +193,7 @@ export function RunView({
         if (mode === "selected" || !left) setSelected(new Set());
         if (!left) {
           setCleared(true);
-          setPreview(null);
+          setPreviewKey(null);
         }
         toast({
           tone: "ok",
@@ -362,7 +375,10 @@ export function RunView({
         scanning={scanning}
         filter={filter}
         onFilter={setFilter}
-        onOpen={setPreview}
+        onOpen={(it, visible) => {
+          viewList.current = visible;
+          setPreviewKey(it.id || it.url);
+        }}
         onToggle={toggle}
         onSelectPage={(urls) =>
           setSelected((prev) => {
@@ -380,8 +396,8 @@ export function RunView({
           current={preview}
           selected={selected}
           busy={blocked}
-          onClose={() => setPreview(null)}
-          onChange={setPreview}
+          onClose={() => setPreviewKey(null)}
+          onChange={(it) => setPreviewKey(it.id || it.url)}
           onToggleSelect={toggle}
           onDownload={(url) => void doDownload([url])}
         />

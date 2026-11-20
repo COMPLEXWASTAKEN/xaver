@@ -72,7 +72,7 @@ export function Workspace({
   const [failedCount, setFailedCount] = useState(0);
   const genRef = useRef<number | null>(null);
   const pending = useRef<MediaItem[]>([]);
-  const frame = useRef<number | null>(null);
+  const frame = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFailure = useRef(0);
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -88,7 +88,7 @@ export function Workspace({
 
   const dropPending = () => {
     pending.current = [];
-    if (frame.current != null) cancelAnimationFrame(frame.current);
+    if (frame.current != null) clearTimeout(frame.current);
     frame.current = null;
   };
 
@@ -158,11 +158,18 @@ export function Workspace({
         dropPending();
         setLiveItems(data.items || []);
       }),
+      window.xaver.jobs.onItemRemoved((p) => {
+        const data = p as { url: string; id: string | null; generation?: number };
+        if (!sameGen(data.generation)) return;
+        const keep = (it: MediaItem) => it.url !== data.url && (!data.id || it.id !== data.id);
+        pending.current = pending.current.filter(keep);
+        setLiveItems((prev) => prev.filter(keep));
+      }),
       window.xaver.jobs.onItem((p) => {
         const data = p as { item: MediaItem; generation?: number };
         if (!sameGen(data.generation)) return;
         pending.current.push(data.item);
-        if (frame.current == null) frame.current = requestAnimationFrame(flush);
+        if (frame.current == null) frame.current = setTimeout(flush, 120);
       }),
       window.xaver.jobs.onDone((p) => {
         const data = p as { job?: JobRecord };
@@ -235,7 +242,8 @@ export function Workspace({
   };
 
   const meta = VIEW_TITLES[view];
-  const density = config?.themeDensity === "compact" ? "compact" : "";
+  const density = appearance.themeDensity === "compact" ? "compact" : "";
+  const closeBell = useCallback(() => setBellOpen(false), []);
   const lockable = Boolean(security?.pinSet);
 
   return (
@@ -256,7 +264,7 @@ export function Workspace({
       {bellOpen ? (
         <NotificationCenter
           feed={feed}
-          onClose={() => setBellOpen(false)}
+          onClose={closeBell}
           onOpen={openNotice}
           onSettings={() => {
             setBellOpen(false);
@@ -265,14 +273,8 @@ export function Workspace({
         />
       ) : null}
       <div className="main">
-        <div className="content view-enter" key={view}>
-          {view !== "run" ? (
-            <div className="page-head">
-              <h1>{meta.title}</h1>
-              {meta.sub ? <p>{meta.sub}</p> : null}
-            </div>
-          ) : null}
-          {view === "run" && config && (
+        {config ? (
+          <div className="content view-enter" style={view === "run" ? undefined : { display: "none" }}>
             <RunView
               config={config}
               auth={auth}
@@ -306,37 +308,45 @@ export function Workspace({
                 }
               }}
             />
-          )}
-          {view === "library" && <LibraryView liveItems={liveItems} />}
-          {view === "database" && <DatabaseView refreshKey={dbRefresh} />}
-          {view === "failed" && <FailedView busy={downloading || scanning} onOpenJobs={() => go("jobs")} />}
-          {view === "jobs" && (
-            <JobsView
-              queue={queue}
-              history={history}
-              activeJobId={activeJobId}
-              onCancel={(id) => window.xaver.jobs.cancel(id)}
-              onOpen={(p) => window.xaver.library.openPath(p).catch((e) => fail("Couldn't open that", e))}
-              failedCount={failedCount}
-              onFailed={() => go("failed")}
-            />
-          )}
-          {view === "settings" && config && (
-            <SettingsView
-              key={settingsCat || "default"}
-              config={config}
-              onChange={patchConfig}
-              security={security}
-              onSecurity={onSecurity}
-              onRerunSetup={() => onAppearanceChange({ setupComplete: false })}
-              appearance={appearance}
-              onAppearance={onAppearanceChange}
-              initialCat={settingsCat}
-            />
-          )}
-          {view === "about" && config && <AboutView config={config} onChange={patchConfig} />}
-          {view === "account" && <AccountView auth={auth} busy={busyAuth} setBusy={setBusyAuth} onAuth={setAuth} />}
-        </div>
+          </div>
+        ) : null}
+        {view !== "run" ? (
+          <div className="content view-enter" key={view}>
+            <div className="page-head">
+              <h1>{meta.title}</h1>
+              {meta.sub ? <p>{meta.sub}</p> : null}
+            </div>
+            {view === "library" && <LibraryView liveItems={liveItems} />}
+            {view === "database" && <DatabaseView refreshKey={dbRefresh} />}
+            {view === "failed" && <FailedView busy={downloading || scanning} onOpenJobs={() => go("jobs")} />}
+            {view === "jobs" && (
+              <JobsView
+                queue={queue}
+                history={history}
+                activeJobId={activeJobId}
+                onCancel={(id) => window.xaver.jobs.cancel(id)}
+                onOpen={(p) => window.xaver.library.openPath(p).catch((e) => fail("Couldn't open that", e))}
+                failedCount={failedCount}
+                onFailed={() => go("failed")}
+              />
+            )}
+            {view === "settings" && config && (
+              <SettingsView
+                key={settingsCat || "default"}
+                config={config}
+                onChange={patchConfig}
+                security={security}
+                onSecurity={onSecurity}
+                onRerunSetup={() => onAppearanceChange({ setupComplete: false })}
+                appearance={appearance}
+                onAppearance={onAppearanceChange}
+                initialCat={settingsCat}
+              />
+            )}
+            {view === "about" && config && <AboutView config={config} onChange={patchConfig} />}
+            {view === "account" && <AccountView auth={auth} busy={busyAuth} setBusy={setBusyAuth} onAuth={setAuth} />}
+          </div>
+        ) : null}
         {view === "run" || view === "jobs" ? (
           <JobInspector job={activeJob} progress={progress} found={liveItems.length} />
         ) : null}

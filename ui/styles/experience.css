@@ -418,7 +418,7 @@
 }
 
 .tile.selected {
-  animation: tileSelect 320ms var(--spring);
+  animation: fadeUp 280ms ease both, tileSelect 320ms var(--spring);
 }
 
 .tile-check {
